@@ -1,0 +1,13 @@
+package userpackage;
+syntax = "proto3";
+
+message Data {
+  bool field1 = 1;
+  bool field2 = 2;
+  int32 field3 = 3;
+  int32 field4 = 4;
+  int32 field5 = 5;
+  int32 field6 = 6;
+  int32 field7 = 7;
+  int32 field8 = 8;
+}

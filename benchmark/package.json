@@ -1,0 +1,9 @@
+{
+  "name": "packBytes benchmark",
+  "version": "1.0.0",
+  "dependencies": {
+    "@msgpack/msgpack": "^2.7.2",
+    "avsc": "^5.7.4",
+    "protobufjs": "^7.0.0"
+  }
+}
