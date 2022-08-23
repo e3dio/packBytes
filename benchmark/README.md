@@ -4,6 +4,8 @@ Install the encoding libraries [avsc](https://github.com/mtth/avsc) - [protobufj
 
 `npm i`
 
+<br>
+
 # Results:
 
 `node benchmark_data1.mjs`
@@ -39,3 +41,16 @@ Encoding | time (ns) | bytes
 ```javascript
 const data = { field1: true, field2: false, field3: 3, field4: 7, field5: 15, field6: 31, field7: 63, field8: 1023 };
 ```
+
+<br>
+
+# Library Size
+
+Not only does PackBytes create the smallest possible encoding at the fastest speed, but the library is <b>20x</b> to <b>200x</b> smaller than other encoding libraries:
+
+Encoding | Library size (bytes)
+--- | ---
+`packBytes_schema` | 13,700
+`avsc` | 263,000
+`protobuf` | 2,730,000
+`msgpack` | 635,000

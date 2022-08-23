@@ -22,8 +22,6 @@
 
 `npm i e3dio/packBytes`
 
-<br>
-
 # Schema:
 
 - Define the structure of your data with a Schema
@@ -33,7 +31,7 @@
 ```javascript
 // example schema with all data types:
 
-import { bool, bits, float, string, blob, array, schemas, PackBytes } from 'e3dio/packBytes';
+import { bool, bits, string, array, float, blob, schemas, PackBytes } from 'e3dio/packBytes';
 
 const schema = {
    a: bool,
@@ -58,8 +56,6 @@ const schema = {
    })
 };
 ```
-
-<br>
 
 # Example:
 
@@ -104,8 +100,6 @@ console.log(data);
 // ]
 ```
 
-<br>
-
 # Benchmark:
 
 - The [benchmark](https://github.com/e3dio/packBytes/tree/main/benchmark) encodes data 50x smaller than JSON and is 5x faster, also compare with other encoding methods: 
@@ -132,28 +126,26 @@ Encoding | time (ns) | bytes
 `msgpack` | 1450 | 33
 `json` | 1150 | 102
 
-<br>
-
 # API:
 
 - Detailed API description and user guide:
 
 ```javascript
 // all available exports
-import { bool, bits, float, string, blob, array, schemas, PackBytes } from 'e3dio/packBytes';
+import { bool, bits, string, array, float, blob, schemas, PackBytes } from 'e3dio/packBytes';
 
 // create a schema using any combination or nesting of schema types
 schema = bool // true or false
 schema = bits(x) // x number bits for unsigned integer (max integer = 2**x-1)
-schema = float(x) // 32 or 64 bit floating point number
 schema = string // string of any length
 schema = string('str1', 'str2', ..) // any of specific strings, auto-maps to integer
+schema = float(x) // 32 or 64 bit floating point number
 schema = blob // any length buffer
 schema = blob(x) // specific byte size buffer 
 schema = array(schema) // array of any schema type
 schema = array(schema).size(x) // specific length array
-schema = { field1: schema, field2: schema } // object with multiple fields
-schema = schemas({ schema1: schema, schema2: schema }) // multiple schemas mapped to 1 schema
+schema = { field1: schema, field2: schema, .. } // object with multiple fields
+schema = schemas({ schema1: schema, schema2: schema, .. }) // multiple schemas mapped to 1 schema
 
 // create encoder by providing schema
 // accepts schema object or JSON.stringify(schema) string for easy transfer from server to client
