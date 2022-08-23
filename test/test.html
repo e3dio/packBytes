@@ -4,7 +4,16 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Packbytes Test</title>
-	<script type="module" src="/test.mjs"></script> 
+	<script type="module">
+		import * as PackBytes from '/packbytes.mjs';
+		for (const exp in PackBytes) window[exp] = PackBytes[exp];
+		const log = msg => window.document.querySelector('body').insertAdjacentHTML('beforeend', `<div>${msg}</div>`);
+		log('Packbytes test.mjs running in console..');
+		log('')
+		import { logs } from '/test.mjs';
+		logs.forEach(msg => log(msg.join(' ')));
+	</script> 
+	<style>body{background:#000;color:#fff;font-family:sans-serif}div{min-height: 20px}</style>
 </head>
-<body>Packbytes running in console</body>
+<body></body>
 </html>

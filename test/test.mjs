@@ -1,12 +1,18 @@
 import { bool, bits, string, array, float, blob, schemas, PackBytes } from '../packbytes.mjs';
 
+export const logs = [];
+const log = (...msg) => { console.log(...msg); logs.push(msg); };
+
 let schema, data;
 
-const test = (schema, data, data2) => {
-	console.log('\nDATA', JSON.stringify(data));
+const test = (schema, ...data) => {
+	log('DATA', JSON.stringify(data[1] ? data: data[0]));
 	const encoder = new PackBytes(schema);
-	const buf = encoder.encode(data, data2); console.log('\nBUF', buf);
-	const obj = encoder.decode(buf); console.log('\nOBJ', JSON.stringify(obj/*, null, 2*/), '\n');
+	const buf = encoder.encode(...data);
+	log('BUF', PackBytes.isNode ? buf : [...new Uint8Array(buf.buffer)].map(x => x.toString(16).padStart(2, '0')).join(''));
+	const obj = encoder.decode(buf);
+	log('OBJ', JSON.stringify(obj));
+	log('');
 };
 
 schema = schemas({
@@ -15,12 +21,13 @@ schema = schemas({
 		a: bool,
 		b: bits(2)
 	},
-	test3: array(bits(3))
+	test3: array(bits(3)),
+	test4: null
 });
 test(JSON.stringify(schema), 'test1', '123');
-test(JSON.stringify(schema), [ 'test1', '123' ]);
 test(JSON.stringify(schema), 'test2', {a:true,b:3});
 test(JSON.stringify(schema), 'test3', [0,1,2,3,4,5,6,7]);
+test(JSON.stringify(schema), 'test4');
 
 schema = array(string('abc', '123', 'xyz'));
 data = [ 'xyz', 'abc', '123' ];

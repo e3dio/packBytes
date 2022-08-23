@@ -19,17 +19,18 @@ export class PackBytes { // encoder and decoder
 		this.schema = typeof schema == 'string' ? JSON.parse(schema) : schema;
 		this.scanSchema(this.schema);
 	}
-	encode(schema, data) {
-		data = data ? [ schema, data ] : schema;
-		this.buf = new Buf(null, this.getDataSize(data, this.schema));
-		this.writeSchema(this.schema, data);
+	encode(...data) {
+		if (this.schema._type != 'schemas') data = data[0];
+		this.buf = new Buf(null, this.getDataSize(data, this.schema, true));
+		this.writeSchema(this.schema, data, true);
 		return this.buf.buf;
 	}
 	decode(buf) {
 		this.buf = new Buf(buf);
-		return this.readSchema(this.schema);
+		return this.readSchema(this.schema, true);
 	}
 	scanSchema(schema, o, parentField) {
+		if (!schema) return;
 		switch (schema._type) {
 			case 'bool': break;
 			case 'bits': schema.bytes = Math.ceil(schema.val / 8); break;
@@ -56,7 +57,8 @@ export class PackBytes { // encoder and decoder
 				if (!parentField) PackBytes.packInts(o);
 		}
 	}
-	getDataSize(data, schema, isChild) {
+	getDataSize(data, schema, top) {
+		if (!schema) return 0;
 		switch (schema._type) {
 			case 'bool': return 1;
 			case 'bits': return schema.bytes;
@@ -64,7 +66,7 @@ export class PackBytes { // encoder and decoder
 			case 'string': return schema.bytes || Buf.strTotalLength(data);
 			case 'blob': return schema.val || data.length || data.byteLength;
 			case 'array': 
-				const size = !schema._size && isChild ? Buf.getVarIntSize(data.length) : 0;
+				const size = !schema._size && !top ? Buf.getVarIntSize(data.length) : 0;
 				const type = schema.val;
 				switch (type._type) {
 					case 'bool': return size + data.length;
@@ -72,29 +74,30 @@ export class PackBytes { // encoder and decoder
 					case 'float': return size + data.length * type.bytes;
 					case 'string': return size + (data.length * type.bytes || data.reduce((total, str) => Buf.strTotalLength(str) + total, 0));
 					case 'blob': return size + (data.length * type.val || data.reduce((total, blob) => (blob.length || blob.byteLength) + total, 0));
-					case 'array': return size + data.reduce((total, arr) => total + this.getDataSize(arr, type.val, true), 0);
-					case 'schemas': return size + data.length * type.bytes + data.reduce((total, data) => total + this.getDataSize(data[1], type.val[data[0]], true), 0);
-					default: return size + data.reduce((total, obj) => total + this.getDataSize(obj, type, true), 0);
+					case 'array': return size + data.reduce((total, arr) => total + this.getDataSize(arr, type.val), 0);
+					case 'schemas': return size + data.length * type.bytes + data.reduce((total, data) => total + this.getDataSize(data[1], type.val[data[0]]), 0);
+					default: return size + data.reduce((total, obj) => total + this.getDataSize(obj, type), 0);
 				}
-			case 'schemas': return Buf.getVarIntSize(schema.values[data[0]]) + this.getDataSize(data[1], schema.val[data[0]]);
+			case 'schemas': return schema.bytes + this.getDataSize(data[1], schema.val[data[0]], top);
 			default: // object
 				const o = schema[PackBytes.objSchema];
 				return o.bytes // covers bool, bits, float
 					+ o.strings.reduce((total, str) => total + Buf.strTotalLength(PackBytes.get(data, str.field)), 0)
 					+ o.blobs.reduce((total, blob) => { const length = blob.bytes || PackBytes.get(data, blob.field)[PackBytes.isNode ? 'length' : 'byteLength']; return total + length + Buf.getVarIntSize(length); }, 0)
-					+ o.arrays.reduce((total, arr) => total + this.getDataSize(PackBytes.get(data, arr.field), PackBytes.get(schema, arr.field), true), 0);
-					+ o.schemas.reduce((total, s) => total + this.getDataSize(PackBytes.get(data, s.field), PackBytes.get(schema, s.field), true), 0);
+					+ o.arrays.reduce((total, arr) => total + this.getDataSize(PackBytes.get(data, arr.field), PackBytes.get(schema, arr.field)), 0);
+					+ o.schemas.reduce((total, s) => total + this.getDataSize(PackBytes.get(data, s.field), PackBytes.get(schema, s.field)), 0);
 		}
 	}
-	writeSchema(schema, data, isChild) {
+	writeSchema(schema, data, top) {
+		if (!schema) return;
 		switch (schema._type) {
 			case 'bool': this.buf.writeUint(data, 1); break;
 			case 'bits': this.buf.writeUint(data, schema.bytes); break;
 			case 'float': this.buf.writeFloat(data, schema.bytes); break;
 			case 'string': schema.bits ? this.buf.writeUint(schema.values[data], schema.bytes) : this.buf.writeString(data); break;
 			case 'blob': this.buf.writeBlob(data, schema.bytes); break;
-			case 'array': if (!schema._size && isChild) this.buf.writeVarInt(data.length); for (const item of data) this.writeSchema(schema.val, item, true); break;
-			case 'schemas': this.buf.writeVarInt(schema.values[data[0]]); this.writeSchema(schema.val[data[0]], data[1], isChild); break;
+			case 'array': if (!schema._size && !top) this.buf.writeVarInt(data.length); for (const item of data) this.writeSchema(schema.val, item); break;
+			case 'schemas': this.buf.writeVarInt(schema.values[data[0]]); this.writeSchema(schema.val[data[0]], data[1], top); break;
 			default: // object
 				const o = schema[PackBytes.objSchema];
 				if (o.int8.length) for (const ints of o.int8) this.writeInts(1, ints, data);
@@ -103,26 +106,27 @@ export class PackBytes { // encoder and decoder
 				if (o.floats.length) for (const float of o.floats) this.buf.writeFloat(PackBytes.get(data, float.field), float.bytes);
 				if (o.strings.length) for (const str of o.strings) this.buf.writeString(PackBytes.get(data, str.field));
 				if (o.blobs.length) for (const blob of o.blobs) this.buf.writeBlob(PackBytes.get(data, blob.field), blob.bytes);
-				if (o.arrays.length) for (const arr of o.arrays) this.writeSchema(PackBytes.get(schema, arr.field), PackBytes.get(data, arr.field), true);
-				if (o.schemas.length) for (const s of o.schemas) this.writeSchema(PackBytes.get(schema, s.field), PackBytes.get(data, s.field), true);
+				if (o.arrays.length) for (const arr of o.arrays) this.writeSchema(PackBytes.get(schema, arr.field), PackBytes.get(data, arr.field));
+				if (o.schemas.length) for (const s of o.schemas) this.writeSchema(PackBytes.get(schema, s.field), PackBytes.get(data, s.field));
 		}
 	}
-	readSchema(schema, isChild) {
+	readSchema(schema, top) {
+		if (!schema) return null;
 		switch (schema._type) {
-			case 'bool': return this.buf.readUint(1);
+			case 'bool': return Boolean(this.buf.readUint(1));
 			case 'bits': return this.buf.readUint(schema.bytes);
 			case 'float': return this.buf.readFloat(schema.bytes);
 			case 'string': return schema.bits ? schema.index[this.buf.readUint(schema.bytes)] : this.buf.readString();
 			case 'blob': return this.buf.readBlob(schema.bytes);
 			case 'array': 
 				const arr = [];
-				let length = schema._size || (isChild && this.buf.readVarInt());
-				if (isChild) while (length--) arr.push(this.readSchema(schema.val, true));
-				else while (this.buf.hasMore) arr.push(this.readSchema(schema.val, true));
+				let length = schema._size || (!top && this.buf.readVarInt());
+				if (length) while (length--) arr.push(this.readSchema(schema.val));
+				else while (this.buf.hasMore) arr.push(this.readSchema(schema.val));
 				return arr;
 			case 'schemas':
 				const name = schema.index[this.buf.readVarInt()];
-				return [ name, this.readSchema(schema.val[name], isChild) ];
+				return [ name, this.readSchema(schema.val[name], top) ];
 			default: // object
 				const obj = {};
 				const o = schema[PackBytes.objSchema];
@@ -132,8 +136,8 @@ export class PackBytes { // encoder and decoder
 				if (o.floats.length) for (const float of o.floats) PackBytes.set(obj, float.field, this.buf.readFloat(float.bytes));
 				if (o.strings.length) for (const str of o.strings) PackBytes.set(obj, str.field, this.buf.readString());
 				if (o.blobs.length) for (const blob of o.blobs) PackBytes.set(obj, blob.field, this.buf.readBlob(blob.bytes));
-				if (o.arrays.length) for (const arr of o.arrays) PackBytes.set(obj, arr.field, this.readSchema(arr.val, true));
-				if (o.schemas.length) for (const s of o.schemas) PackBytes.set(obj, s.field, this.readSchema(s.val.index[this.buf.readVarInt()], isChild));
+				if (o.arrays.length) for (const arr of o.arrays) PackBytes.set(obj, arr.field, this.readSchema(arr.val));
+				if (o.schemas.length) for (const s of o.schemas) PackBytes.set(obj, s.field, this.readSchema(s.val.index[this.buf.readVarInt()]));
 				return obj;
 		}
 	}
