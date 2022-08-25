@@ -1,133 +1,71 @@
 import { bool, bits, string, array, float, blob, schemas, PackBytes } from '../packbytes.mjs';
-
 export const logs = [];
-const log = (...msg) => { console.log(...msg); logs.push(msg); };
+const log = (...msg) => console.log(...msg) || logs.push(msg);
+const isNode = PackBytes.isNode;
 
-let schema, data;
-
-const test = (schema, ...data) => {
-	log('DATA', JSON.stringify(data[1] ? data: data[0]));
-	const encoder = new PackBytes(schema);
-	const buf = encoder.encode(...data);
-	log('BUF', PackBytes.isNode ? buf : [...new Uint8Array(buf.buffer)].map(x => x.toString(16).padStart(2, '0')).join(''));
-	const obj = encoder.decode(buf);
-	log('OBJ', JSON.stringify(obj));
-	log('');
-};
-
-schema = schemas({
-	test1: string,
-	test2: {
-		a: bool,
-		b: bits(2)
-	},
-	test3: array(bits(3)),
-	test4: null
-});
-test(JSON.stringify(schema), 'test1', '123');
-test(JSON.stringify(schema), 'test2', {a:true,b:3});
-test(JSON.stringify(schema), 'test3', [0,1,2,3,4,5,6,7]);
-test(JSON.stringify(schema), 'test4');
-
-schema = array(string('abc', '123', 'xyz'));
-data = [ 'xyz', 'abc', '123' ];
-test(JSON.stringify(schema), data);
-
-schema = array(schemas({
-	test1: string('abc', '123', 'xyz'),
-	test2: array(bits(2)).size(4)
-}))
-data = [ [ 'test2', [ 3, 2, 1, 0] ], [ 'test1', 'xyz' ] ];
-test(JSON.stringify(schema), data);
-
-schema = {
-	a: array(string('a','b')).size(3)
-};
-data = {a:['b','a','b']};
-test(JSON.stringify(schema), data);
-
-schema = array({
-	a: bool,
-	b: {
-		1: bool,
-		2: bits(2),
-		3: array(bits(3)),
-	},
-	c: array({
-		1: bool
-	}),
-});
-data = [
-	{
-		a: false,
-		b: {
-			1: false,
-			2: 0,
-			3: [0,0],
-		},
-		c: [{
-			1: false
-		}]
-	}, {
-		a: true,
-		b: {
-			1: true,
-			2: 3,
-			3: [7,7],
-		},
-		c: [{
-			1: true
-		}]
-	}
+const tests = [
+	{ schema: bool, data: true },
+	{ schema: bool, data: false },
+	{ schema: bits(1), data: 0 },
+	{ schema: bits(1), data: 1 },
+	{ schema: bits(8), data: 255 },
+	{ schema: bits(32), data: 4294967295 },
+	{ schema: string, data: 'str' },
+	{ schema: string('str1', 'str2'), data: 'str2' },
+	//{ schema: float(32), data: 1.33 },
+	//{ schema: float(64), data: 12345678.901234 },
+	{ schema: blob, data: isNode ? Buffer.from([ 0, 1 ]) : new Uint8Array([ 0, 1 ]) },
+	{ schema: blob(3), data: isNode ? Buffer.from([ 0, 1, 2 ]) : new Uint8Array([ 0, 1, 2 ]) },
+	{ schema: array(bits(2)), data: [ 0, 1, 2, 3 ] },
+	{ schema: schemas({ s1: null, s2: bits(3) }), data: [ 's2', 3 ] },
 ];
-test(JSON.stringify(schema), data);
+tests.push({
+	schema: tests.reduce((obj, t, i) => (obj[i] = t.schema, obj), {}),
+	data: tests.reduce((obj, t, i) => (obj[i] = t.data, obj), {})
+});
+tests.push(
+	...tests.map(t => ({ schema: array(t.schema), data: [ t.data, t.data ] })),
+	...tests.map(t => ({ schema: array(t.schema).size(3), data: [ t.data, t.data, t.data ] }))
+);
+tests.push({
+	schema: tests.reduce((obj, t, i) => (obj[i] = t.schema, obj), {}),
+	data: tests.reduce((obj, t, i) => (obj[i] = t.data, obj), {})
+});
+tests.push({
+	schema: schemas({ s1: bool, s2: tests.slice(-1)[0].schema }),
+	data: [ 's2', tests.slice(-1)[0].data ]
+});
 
-schema = {
-	a: bool,
-	b: bits(1),
-	c: bits(2),
-	d: bits(3),
-	e: bits(4),
-	f: bits(5),
-	g: bits(6),
-	h: bits(7),
-	i: bits(8),
-	1: bits(9),
-	2: bits(10),
-	3: bits(11),
-	4: bits(12),
-	5: bits(13),
-	6: bits(14),
-	7: string,
-	8: array(bits(8)),
-	9: float(32),
-	10: float(64),
-	11: blob,
-	12: blob(3),
-	13: {a:bool,b:bits(2),c:{d:bits(4),e:bits(5)}},
-};
-data = {
-	a: 0,
-	b: 1,
-	c: 3,
-	d: 7,
-	e: 15,
-	f: 31,
-	g: 63,
-	h: 127,
-	i: 255,
-	1: 511,
-	2: 1023,
-	3: 2047,
-	4: 4095,
-	5: 8191,
-	6: 16383,
-	7: 'abc123',
-	8: [0,1,2,3,4,5,19,20,255],
-	9: 1.2,
-	10: 3221.1324,
-	11: PackBytes.isNode ? Buffer.from([1,2,3]) : new Uint8Array([1,2,3]),
-	12: PackBytes.isNode ? Buffer.from([4,5,6]) : new Uint8Array([4,5,6]),
-	13: {a:true,b:3,c:{d:15,e:31}},
-};
-test(JSON.stringify(schema), data);
+// run tests
+let fail;
+tests.forEach((t, i) => {
+	const json = JSON.stringify(t.schema);
+	[ new PackBytes(t.schema), new PackBytes(json) ].forEach((encoder, j, arr) => {
+		if (fail) return;
+		log('');
+		log('TEST', i * arr.length + j + 1);
+		log(json);
+		log(JSON.stringify(t.data));
+		try {
+			var buf = encoder.encode(t.data);
+			log(buf, buf.length || buf.byteLength);
+			var result = encoder.decode(buf);
+		} catch (e) {
+			log('');
+			log('FAIL:');
+			log(e.stack);
+			fail = true;
+			return;
+		}
+		if (JSON.stringify(result) == JSON.stringify(t.data)) return;
+		log('');
+		log('FAIL:');
+		log(JSON.stringify(t.data));
+		log(JSON.stringify(result));
+		log('');
+		fail = true;
+	});
+});
+log('');
+log('ALL TESTS PASSED');
+log('');

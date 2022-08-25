@@ -31,7 +31,7 @@
 ```javascript
 // example schema with all data types:
 
-import { bool, bits, string, array, float, blob, schemas, PackBytes } from 'e3dio/packBytes';
+import { bool, bits, string, array, float, blob, schemas, PackBytes } from 'packbytes';
 
 const schema = {
    a: bool,
@@ -63,7 +63,7 @@ const schema = {
 
 ### Schema:
 ```javascript
-import { bool, bits, array, PackBytes } from 'e3dio/packBytes';
+import { bool, bits, array, PackBytes } from 'packbytes';
 
 const schema = array({
    a: bool,
@@ -132,7 +132,7 @@ Encoding | time (ns) | bytes
 
 ```javascript
 // all available exports
-import { bool, bits, string, array, float, blob, schemas, PackBytes } from 'e3dio/packBytes';
+import { bool, bits, string, array, float, blob, schemas, PackBytes } from 'packbytes';
 
 // create a schema using any combination or nesting of schema types
 schema = bool // true or false

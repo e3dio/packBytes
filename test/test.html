@@ -9,11 +9,12 @@
 		for (const exp in PackBytes) window[exp] = PackBytes[exp];
 		const log = msg => window.document.querySelector('body').insertAdjacentHTML('beforeend', `<div>${msg}</div>`);
 		log('Packbytes test.mjs running in console..');
-		log('')
 		import { logs } from '/test.mjs';
 		logs.forEach(msg => log(msg.join(' ')));
-	</script> 
+		setTimeout(() => window.scrollTo(0, 9e9), 1000);
+	</script>
 	<style>body{background:#000;color:#fff;font-family:sans-serif}div{min-height: 20px}</style>
 </head>
-<body></body>
+<body>
+</body>
 </html>

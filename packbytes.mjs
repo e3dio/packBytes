@@ -16,11 +16,11 @@ export const [ bool, bits, float, string, blob, array, schemas ] = Type.types.ma
 
 export class PackBytes { // encoder and decoder
 	constructor(schema) {
-		this.schema = typeof schema == 'string' ? JSON.parse(schema) : schema;
+		this.schema = JSON.parse(typeof schema == 'string' ? schema : JSON.stringify(schema));
 		this.scanSchema(this.schema);
 	}
 	encode(...data) {
-		if (this.schema._type != 'schemas') data = data[0];
+		if (this.schema._type != 'schemas' || Array.isArray(data[0])) data = data[0];
 		this.buf = new Buf(null, this.getDataSize(data, this.schema, true));
 		this.writeSchema(this.schema, data, true);
 		return this.buf.buf;
@@ -29,32 +29,34 @@ export class PackBytes { // encoder and decoder
 		this.buf = new Buf(buf);
 		return this.readSchema(this.schema, true);
 	}
-	scanSchema(schema, o, parentField) {
+	scanSchema(schema, o, parent) {
 		if (!schema) return;
 		switch (schema._type) {
-			case 'bool': break;
-			case 'bits': schema.bytes = Math.ceil(schema.val / 8); break;
+			case 'bool': schema.bits = 1; schema.bool = true; break;
+			case 'bits': schema.bytes = Math.ceil((schema.bits = schema.val) / 8); break;
 			case 'float': schema.bytes = schema.val / 8; break;
-			case 'string': if (schema.val) PackBytes.genMap(schema, schema.val); break;
-			case 'blob': break;
+			case 'string': if (schema.val) { schema.map = PackBytes.genMap(schema.val); schema.bits = schema.map.bits; } break;
+			case 'blob': schema.bytes = schema.val; break;
 			case 'array': this.scanSchema(schema.val); break;
-			case 'schemas': PackBytes.genMap(schema, Object.keys(schema.val)); Object.values(schema.val).forEach(s => this.scanSchema(s)); break;
+			case 'schemas': schema.map = PackBytes.genMap(Object.keys(schema.val)); Object.values(schema.val).forEach(s => this.scanSchema(s)); break;
 			default: // object
 				if (!o) o = schema[PackBytes.objSchema] = PackBytes.newObjSchema();
 				for (let field in schema) {
 					const type = schema[field];
-					if (parentField) field = parentField.concat(field);
+					if (type._type) type.field = parent ? parent.concat(field) : field;
+					this.scanSchema(type, o, parent ? field : [ field ]);
 					switch (type._type) {
-						case 'bool': o.ints.push({ field, bits: 1, bool: true }); break;
-						case 'bits': o.ints.push({ field, bits: type.val }); break;
-						case 'float': o.floats.push({ field, bytes: type.val / 8 }); break;
-						case 'string': if (type.bits) { o.ints.push({ field, bits: type.bits, string: type }); this.scanSchema(type); } else o.strings.push({ field }); break;
-						case 'blob': o.blobs.push({ field, bytes: type.val }); break;
-						case 'array': o.arrays.push({ field, val: type }); this.scanSchema(type.val); break;
-						case 'schemas': o.schemas.push({ field, val: type }); this.scanSchema(type); break;
-						default: this.scanSchema(type, o, parentField ? field : [ field ]);
-				}}
-				if (!parentField) PackBytes.packInts(o);
+						case 'bool': o.ints.push(type); break;
+						case 'bits': o.ints.push(type); break;
+						case 'float': o.floats.push(type); break;
+						case 'string': type.map ? o.ints.push(type) : o.strings.push(type); break;
+						case 'blob': o.blobs.push(type); break;
+						case 'array': o.arrays.push(type); break;
+						case 'schemas': o.schemas.push(type); break;
+						default: break;
+					}
+				}
+				if (!parent) PackBytes.packInts(o);
 		}
 	}
 	getDataSize(data, schema, top) {
@@ -63,28 +65,28 @@ export class PackBytes { // encoder and decoder
 			case 'bool': return 1;
 			case 'bits': return schema.bytes;
 			case 'float': return schema.bytes;
-			case 'string': return schema.bytes || Buf.strTotalLength(data);
-			case 'blob': return schema.val || data.length || data.byteLength;
+			case 'string': return schema.map?.bytes || Buf.strTotalLength(data);
+			case 'blob': return schema.bytes || Buf.length(data) + (top ? 0 : Buf.getVarIntSize(Buf.length(data)));
 			case 'array': 
-				const size = !schema._size && !top ? Buf.getVarIntSize(data.length) : 0;
 				const type = schema.val;
+				const size = schema._size || top ? 0 : Buf.getVarIntSize(data.length);
 				switch (type._type) {
 					case 'bool': return size + data.length;
 					case 'bits': return size + data.length * type.bytes;
 					case 'float': return size + data.length * type.bytes;
-					case 'string': return size + (data.length * type.bytes || data.reduce((total, str) => Buf.strTotalLength(str) + total, 0));
-					case 'blob': return size + (data.length * type.val || data.reduce((total, blob) => (blob.length || blob.byteLength) + total, 0));
-					case 'array': return size + data.reduce((total, arr) => total + this.getDataSize(arr, type.val), 0);
-					case 'schemas': return size + data.length * type.bytes + data.reduce((total, data) => total + this.getDataSize(data[1], type.val[data[0]]), 0);
+					case 'string': return size + (data.length * type.map?.bytes || data.reduce((total, str) => Buf.strTotalLength(str) + total, 0));
+					case 'blob': return size + (data.length * type.bytes || data.reduce((total, blob) => Buf.getVarIntSize(Buf.length(blob)) + Buf.length(blob) + total, 0));
+					case 'array': return size + data.reduce((total, arr) => total + this.getDataSize(arr, type), 0);
+					case 'schemas': return size + data.length * type.map.bytes + data.reduce((total, data) => total + this.getDataSize(data[1], type.val[data[0]]), 0);
 					default: return size + data.reduce((total, obj) => total + this.getDataSize(obj, type), 0);
 				}
-			case 'schemas': return schema.bytes + this.getDataSize(data[1], schema.val[data[0]], top);
+			case 'schemas': return schema.map.bytes + this.getDataSize(data[1], schema.val[data[0]], top);
 			default: // object
 				const o = schema[PackBytes.objSchema];
 				return o.bytes // covers bool, bits, float
 					+ o.strings.reduce((total, str) => total + Buf.strTotalLength(PackBytes.get(data, str.field)), 0)
-					+ o.blobs.reduce((total, blob) => { const length = blob.bytes || PackBytes.get(data, blob.field)[PackBytes.isNode ? 'length' : 'byteLength']; return total + length + Buf.getVarIntSize(length); }, 0)
-					+ o.arrays.reduce((total, arr) => total + this.getDataSize(PackBytes.get(data, arr.field), PackBytes.get(schema, arr.field)), 0);
+					+ o.blobs.reduce((total, blob) => { const length = blob.bytes || Buf.length(PackBytes.get(data, blob.field)); return total + length + (blob.bytes ? 0 : Buf.getVarIntSize(length)); }, 0)
+					+ o.arrays.reduce((total, arr) => total + this.getDataSize(PackBytes.get(data, arr.field), PackBytes.get(schema, arr.field)), 0)
 					+ o.schemas.reduce((total, s) => total + this.getDataSize(PackBytes.get(data, s.field), PackBytes.get(schema, s.field)), 0);
 		}
 	}
@@ -94,10 +96,10 @@ export class PackBytes { // encoder and decoder
 			case 'bool': this.buf.writeUint(data, 1); break;
 			case 'bits': this.buf.writeUint(data, schema.bytes); break;
 			case 'float': this.buf.writeFloat(data, schema.bytes); break;
-			case 'string': schema.bits ? this.buf.writeUint(schema.values[data], schema.bytes) : this.buf.writeString(data); break;
-			case 'blob': this.buf.writeBlob(data, schema.bytes); break;
+			case 'string': schema.map ? this.buf.writeUint(schema.map.values[data], schema.map.bytes) : this.buf.writeString(data); break;
+			case 'blob': this.buf.writeBlob(data, schema.bytes, top); break;
 			case 'array': if (!schema._size && !top) this.buf.writeVarInt(data.length); for (const item of data) this.writeSchema(schema.val, item); break;
-			case 'schemas': this.buf.writeVarInt(schema.values[data[0]]); this.writeSchema(schema.val[data[0]], data[1], top); break;
+			case 'schemas': this.buf.writeVarInt(schema.map.values[data[0]]); this.writeSchema(schema.val[data[0]], data[1], top); break;
 			default: // object
 				const o = schema[PackBytes.objSchema];
 				if (o.int8.length) for (const ints of o.int8) this.writeInts(1, ints, data);
@@ -116,8 +118,8 @@ export class PackBytes { // encoder and decoder
 			case 'bool': return Boolean(this.buf.readUint(1));
 			case 'bits': return this.buf.readUint(schema.bytes);
 			case 'float': return this.buf.readFloat(schema.bytes);
-			case 'string': return schema.bits ? schema.index[this.buf.readUint(schema.bytes)] : this.buf.readString();
-			case 'blob': return this.buf.readBlob(schema.bytes);
+			case 'string': return schema.map ? schema.map.index[this.buf.readUint(schema.map.bytes)] : this.buf.readString();
+			case 'blob': return this.buf.readBlob(schema.bytes, top);
 			case 'array': 
 				const arr = [];
 				let length = schema._size || (!top && this.buf.readVarInt());
@@ -125,7 +127,7 @@ export class PackBytes { // encoder and decoder
 				else while (this.buf.hasMore) arr.push(this.readSchema(schema.val));
 				return arr;
 			case 'schemas':
-				const name = schema.index[this.buf.readVarInt()];
+				const name = schema.map.index[this.buf.readVarInt()];
 				return [ name, this.readSchema(schema.val[name], top) ];
 			default: // object
 				const obj = {};
@@ -136,8 +138,8 @@ export class PackBytes { // encoder and decoder
 				if (o.floats.length) for (const float of o.floats) PackBytes.set(obj, float.field, this.buf.readFloat(float.bytes));
 				if (o.strings.length) for (const str of o.strings) PackBytes.set(obj, str.field, this.buf.readString());
 				if (o.blobs.length) for (const blob of o.blobs) PackBytes.set(obj, blob.field, this.buf.readBlob(blob.bytes));
-				if (o.arrays.length) for (const arr of o.arrays) PackBytes.set(obj, arr.field, this.readSchema(arr.val));
-				if (o.schemas.length) for (const s of o.schemas) PackBytes.set(obj, s.field, this.readSchema(s.val.index[this.buf.readVarInt()]));
+				if (o.arrays.length) for (const arr of o.arrays) PackBytes.set(obj, arr.field, this.readSchema(arr));
+				if (o.schemas.length) for (const s of o.schemas) { const name = s.map.index[this.buf.readVarInt()]; PackBytes.set(obj, s.field, [ name, this.readSchema(s.val[name]) ]); };
 				return obj;
 		}
 	}
@@ -145,17 +147,17 @@ export class PackBytes { // encoder and decoder
 		let packed = 0;
 		for (const int of ints) {
 			packed <<= int.bits;
-			packed |= PackBytes.get(data, int.field);
+			packed |= int.map ? int.map.values[PackBytes.get(data, int.field)] : PackBytes.get(data, int.field);
 		}
 		this.buf.writeUint(packed >>> 0, bytes);
 	}
 	readInts(bytes, ints, obj) {
 		let packed = this.buf.readUint(bytes);
 		if (ints.length > 1) for (let i = ints.length - 1; i >= 0; i--) {
-			const val = ints[i].bool ? Boolean(packed & 1) : packed % (1 << ints[i].bits);
-			PackBytes.set(obj, ints[i].field, ints[i].string ? ints[i].string.index[val] : val);
+			const val = packed % (1 << ints[i].bits);
+			PackBytes.set(obj, ints[i].field, ints[i].bool ? Boolean(val) : ints[i].map?.index[val] || val);
 			packed >>>= ints[i].bits;
-		} else PackBytes.set(obj, ints[0].field, ints[0].bool ? Boolean(packed) : packed);
+		} else PackBytes.set(obj, ints[0].field, ints[0].bool ? Boolean(packed) : ints[0].map?.index[packed] || packed);
 	}
 	static packInts(o) {
 		o.ints.sort((a, b) => b.bits - a.bits);
@@ -172,14 +174,17 @@ export class PackBytes { // encoder and decoder
 		}
 		o.bytes = (o.int32.length * 4) + (o.int16.length * 2) + o.int8.length + o.floats.reduce((total, float) => total + float.bytes, 0);
 	}
-	static genMap(type, values) {
-		type.index = {}; type.values = {};
-		values.forEach((val, i) => { type.index[i] = val; type.values[val] = i; });
-		type.bits = PackBytes.numberToBits(values.length - 1);
-		type.bytes = Math.ceil(type.bits / 8);
+	static genMap(values) {
+		const bits = PackBytes.numberToBits(values.length - 1);
+		return {
+			bits,
+			bytes: Math.ceil(bits / 8),
+			index: values.reduce((obj, v, i) => (obj[i] = v, obj), {}),
+			values: values.reduce((obj, v, i) => (obj[v] = i, obj), {})
+		};
 	}
-	static isNode = typeof window != 'object';
 	static objSchema = Symbol('objSchema');
+	static isNode = typeof window != 'object';
 	static numberToBits(num) { return Math.ceil(Math.log2(num + 1)) || 1; }
 	static newObjSchema() { return { ints: [], int8: [], int16: [], int32: [], strings: [], blobs: [], floats: [], arrays: [], schemas: [] }; }
 	static get(obj, field) { return field.reduce?.((obj, field) => obj[field], obj) || obj[field]; }
@@ -210,16 +215,16 @@ class Buf { // cross-platform buffer operations for Node.js and Web Browser
 		Buf.isNode ? this.buf.write(str, this.off) : new Uint8Array(this.buf.buffer, this.off, length).set(str);
 		this.off += length;
 	}
-	readBlob(bytes) {
-		const length = bytes || this.readVarInt();
+	readBlob(bytes, full) {
+		const length = bytes || (full && this.length) || this.readVarInt();
 		const blob = Buf.isNode ? this.buf.subarray(this.off, this.off + length) : new Uint8Array(this.buf.buffer, this.off, length);
 		this.off += length;
 		return blob;
 	}
-	writeBlob(buf, bytes) {
-		const length = bytes || (Buf.isNode? buf.length : buf.byteLength);
-		if (!bytes) this.writeVarInt(length);
-		Buf.isNode ? buf.copy(this.buf, this.off, 0, bytes) : new Uint8Array(this.buf.buffer, this.off, length).set(buf);
+	writeBlob(buf, bytes, full) {
+		const length = bytes || Buf.length(buf);
+		if (!bytes && !full) this.writeVarInt(length);
+		Buf.isNode ? buf.copy(this.buf, this.off, 0, length) : new Uint8Array(this.buf.buffer, this.off, length).set(buf);
 		this.off += length;
 	}
 	readUint(bytes) {
@@ -254,10 +259,12 @@ class Buf { // cross-platform buffer operations for Node.js and Web Browser
 		if (int < 1_073_741_824) return this.writeUint(((int & 0b11_1111_1000_0000_0000_0000_0000_0000) << 1) | (int & 0b111_1111_1111_1111_1111_1111) | 0b1000_0000_1000_0000_0000_0000_0000_0000, 4);
 		throw Error(`varInt max 1,073,741,823 exceeded: ${int}`);
 	}
-	get hasMore() { return this.off < this.buf[Buf.isNode ? 'length' : 'byteLength']; }
+	get hasMore() { return this.off < this.length; }
+	get length() { return Buf.isNode ? this.buf.length : this.buf.byteLength; }
 	static getVarIntSize(int) { return int < 128 ? 1 : int < 16_384 ? 2 : 4; }
-	static strByteLength(str) { if (Buf.isNode) return Buffer.byteLength(str); let s = str.length; for (let i = str.length - 1; i >= 0; i--) { const code = str.charCodeAt(i); if (code > 0x7f && code <= 0x7ff) s++; else if (code > 0x7ff && code <= 0xffff) s += 2; if (code >= 0xDC00 && code <= 0xDFFF) i--; } return s; }
 	static strTotalLength(str) { const length = Buf.strByteLength(str); return length + Buf.getVarIntSize(length); }
+	static strByteLength(str) { if (Buf.isNode) return Buffer.byteLength(str); let s = str.length; for (let i = str.length - 1; i >= 0; i--) { const code = str.charCodeAt(i); if (code > 0x7f && code <= 0x7ff) s++; else if (code > 0x7ff && code <= 0xffff) s += 2; if (code >= 0xDC00 && code <= 0xDFFF) i--; } return s; }
+	static length(buf) { return Buf.isNode ? buf.length : buf.byteLength; }
 	static textEncoder = !Buf.isNode && new TextEncoder();
 	static textDecoder = !Buf.isNode && new TextDecoder();
 	static isNode = typeof window != 'object';
