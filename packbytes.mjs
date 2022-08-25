@@ -197,7 +197,7 @@ export class PackBytes { // encoder and decoder
 	}
 }
 
-class Buf { // cross-platform buffer operations for Node.js and Web Browser
+export class Buf { // cross-platform buffer operations for Node.js and Web Browser
 	constructor(buf, size) {
 		this.buf = Buf.isNode ? buf instanceof ArrayBuffer && Buffer.from(buf) || buf || Buffer.allocUnsafe(size) : new DataView(buf?.buffer || buf || new ArrayBuffer(size));
 		this.off = 0;
