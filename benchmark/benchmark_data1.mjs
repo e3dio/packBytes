@@ -6,7 +6,7 @@ import { bool, bits, PackBytes } from '../packbytes.mjs';
 // encode data benchmark
 const data = { field1: true, field2: false, field3: 3, field4: 15 };
 
-const proto = await protobuf.load('protobuf_schemas/data1.proto');
+const proto = await protobuf.load('./protobuf_schemas/data1.proto');
 const protoEncoder = proto.lookupType('userpackage.Data');
 const avscEncoder = avsc.Type.forValue(data);
 const packBytesEncoder = new PackBytes({ field1: bool, field2: bool, field3: bits(2), field4: bits(4) });

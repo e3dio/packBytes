@@ -39,32 +39,31 @@ tests.push({
 // run tests
 let fail;
 tests.forEach((t, i) => {
+	if (fail) return;
 	const json = JSON.stringify(t.schema);
-	[ new PackBytes(t.schema), new PackBytes(json) ].forEach((encoder, j, arr) => {
-		if (fail) return;
-		log('');
-		log('TEST', i * arr.length + j + 1);
-		log(json);
-		log(JSON.stringify(t.data));
-		try {
-			var buf = encoder.encode(t.data);
-			log(buf, buf.length || buf.byteLength);
-			var result = encoder.decode(buf);
-		} catch (e) {
-			log('');
-			log('FAIL:');
-			log(e.stack);
-			fail = true;
-			return;
-		}
-		if (JSON.stringify(result) == JSON.stringify(t.data)) return;
+	const encoder = new PackBytes(json);
+	log('');
+	log('TEST', i + 1);
+	log(json);
+	log(JSON.stringify(t.data));
+	try {
+		var buf = encoder.encode(t.data);
+		log(buf, buf.length || buf.byteLength);
+		var result = encoder.decode(buf);
+	} catch (e) {
 		log('');
 		log('FAIL:');
-		log(JSON.stringify(t.data));
-		log(JSON.stringify(result));
-		log('');
+		log(e.stack);
 		fail = true;
-	});
+		return;
+	}
+	if (JSON.stringify(result) == JSON.stringify(t.data)) return;
+	log('');
+	log('FAIL:');
+	log(JSON.stringify(t.data));
+	log(JSON.stringify(result));
+	log('');
+	fail = true;
 });
 if (!fail) {
 	log('');

@@ -147,7 +147,7 @@ schema = array(schema).size(x) // specific length array
 schema = { field1: schema, field2: schema, .. } // object with multiple fields
 schema = schemas({ schema1: schema, schema2: schema, .. }) // multiple schemas mapped to 1 schema
 
-// create encoder by providing schema
+// create encoder by providing schema:
 // accepts schema object or JSON.stringify(schema) string for easy transfer from server to client:
 encoder = new PackBytes(schema)
 
