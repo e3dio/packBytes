@@ -131,10 +131,10 @@ Encoding | time (ns) | bytes
 - Detailed API description and user guide:
 
 ```javascript
-// all available exports
+// all available exports:
 import { bool, bits, string, array, float, blob, schemas, PackBytes } from 'packbytes';
 
-// create a schema using any combination or nesting of schema types
+// create a schema using any combination or nesting of schema types:
 schema = bool // true or false
 schema = bits(x) // x number bits for unsigned integer (max integer = 2**x-1)
 schema = string // string of any length
@@ -148,7 +148,7 @@ schema = { field1: schema, field2: schema, .. } // object with multiple fields
 schema = schemas({ schema1: schema, schema2: schema, .. }) // multiple schemas mapped to 1 schema
 
 // create encoder by providing schema
-// accepts schema object or JSON.stringify(schema) string for easy transfer from server to client
+// accepts schema object or JSON.stringify(schema) string for easy transfer from server to client:
 encoder = new PackBytes(schema)
 
 buf = encoder.encode(data) // encode data

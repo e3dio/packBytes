@@ -66,6 +66,8 @@ tests.forEach((t, i) => {
 		fail = true;
 	});
 });
-log('');
-log('ALL TESTS PASSED');
-log('');
+if (!fail) {
+	log('');
+	log('ALL TESTS PASSED');
+	log('');
+}
