@@ -43,14 +43,3 @@ const data = { field1: true, field2: false, field3: 3, field4: 7, field5: 15, fi
 ```
 
 <br>
-
-# Library Size
-
-Not only does PackBytes create the smallest possible encoding at the fastest speed, but the library is <b>20x</b> to <b>200x</b> smaller than other encoding libraries:
-
-Encoding | Library size (bytes)
---- | ---
-`packBytes_schema` | 13,700
-`avsc` | 263,000
-`protobuf` | 2,730,000
-`msgpack` | 635,000

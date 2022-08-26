@@ -183,10 +183,10 @@ export class PackBytes { // encoder and decoder
 			values: values.reduce((obj, v, i) => (obj[v] = i, obj), {})
 		};
 	}
-	static objSchema = Symbol('objSchema');
 	static isNode = typeof window != 'object';
-	static numberToBits(num) { return Math.ceil(Math.log2(num + 1)) || 1; }
+	static objSchema = Symbol('objSchema');
 	static newObjSchema() { return { ints: [], int8: [], int16: [], int32: [], strings: [], blobs: [], floats: [], arrays: [], schemas: [] }; }
+	static numberToBits(num) { return Math.ceil(Math.log2(num + 1)) || 1; }
 	static get(obj, field) { return field.reduce?.((obj, field) => obj[field], obj) || obj[field]; }
 	static set(obj, field, val) {
 		if (Array.isArray(field)) field.reduce((obj, _field, i) => {
@@ -259,13 +259,13 @@ export class Buf { // cross-platform buffer operations for Node.js and Web Brows
 		if (int < 1_073_741_824) return this.writeUint(((int & 0b11_1111_1000_0000_0000_0000_0000_0000) << 1) | (int & 0b111_1111_1111_1111_1111_1111) | 0b1000_0000_1000_0000_0000_0000_0000_0000, 4);
 		throw Error(`varInt max 1,073,741,823 exceeded: ${int}`);
 	}
-	get hasMore() { return this.off < this.length; }
 	get length() { return Buf.isNode ? this.buf.length : this.buf.byteLength; }
+	get hasMore() { return this.off < this.length; }
 	static getVarIntSize(int) { return int < 128 ? 1 : int < 16_384 ? 2 : 4; }
-	static strTotalLength(str) { const length = Buf.strByteLength(str); return length + Buf.getVarIntSize(length); }
 	static strByteLength(str) { if (Buf.isNode) return Buffer.byteLength(str); let s = str.length; for (let i = str.length - 1; i >= 0; i--) { const code = str.charCodeAt(i); if (code > 0x7f && code <= 0x7ff) s++; else if (code > 0x7ff && code <= 0xffff) s += 2; if (code >= 0xDC00 && code <= 0xDFFF) i--; } return s; }
+	static strTotalLength(str) { const length = Buf.strByteLength(str); return length + Buf.getVarIntSize(length); }
 	static length(buf) { return Buf.isNode ? buf.length : buf.byteLength; }
+	static isNode = typeof window != 'object';
 	static textEncoder = !Buf.isNode && new TextEncoder();
 	static textDecoder = !Buf.isNode && new TextDecoder();
-	static isNode = typeof window != 'object';
 }
