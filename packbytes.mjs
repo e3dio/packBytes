@@ -32,29 +32,19 @@ export class PackBytes { // encoder and decoder
 	scanSchema(schema, o, parent) {
 		if (!schema) return;
 		switch (schema._type) {
-			case 'bool': schema.bits = 1; schema.bool = true; break;
-			case 'bits': schema.bytes = Math.ceil((schema.bits = schema.val) / 8); break;
-			case 'float': schema.bytes = schema.val / 8; break;
-			case 'string': if (schema.val) { schema.map = PackBytes.genMap(schema.val); schema.bits = schema.map.bits; } break;
-			case 'blob': schema.bytes = schema.val; break;
-			case 'array': this.scanSchema(schema.val); break;
-			case 'schemas': schema.map = PackBytes.genMap(Object.keys(schema.val)); Object.values(schema.val).forEach(s => this.scanSchema(s)); break;
+			case 'bool': schema.bits = 1; schema.bool = true; o?.ints.push(schema); break;
+			case 'bits': schema.bytes = Math.ceil((schema.bits = schema.val) / 8); o?.ints.push(schema); break;
+			case 'float': schema.bytes = schema.val / 8; o?.floats.push(schema); break;
+			case 'string': if (schema.val) { schema.map = PackBytes.genMap(schema.val); schema.bits = schema.map.bits; } o?.[schema.map ? 'ints' : 'strings'].push(schema); break;
+			case 'blob': schema.bytes = schema.val; o?.blobs.push(schema); break;
+			case 'array': this.scanSchema(schema.val); o?.arrays.push(schema); break;
+			case 'schemas': schema.map = PackBytes.genMap(Object.keys(schema.val)); Object.values(schema.val).forEach(s => this.scanSchema(s)); o?.schemas.push(schema); break;
 			default: // object
 				if (!o) o = schema[PackBytes.objSchema] = PackBytes.newObjSchema();
 				for (let field in schema) {
 					const type = schema[field];
 					if (type._type) type.field = parent ? parent.concat(field) : field;
 					this.scanSchema(type, o, parent ? field : [ field ]);
-					switch (type._type) {
-						case 'bool': o.ints.push(type); break;
-						case 'bits': o.ints.push(type); break;
-						case 'float': o.floats.push(type); break;
-						case 'string': type.map ? o.ints.push(type) : o.strings.push(type); break;
-						case 'blob': o.blobs.push(type); break;
-						case 'array': o.arrays.push(type); break;
-						case 'schemas': o.schemas.push(type); break;
-						default: break;
-					}
 				}
 				if (!parent) PackBytes.packInts(o);
 		}
