@@ -29,24 +29,23 @@ export class PackBytes { // encoder and decoder
 		this.buf = new Buf(buf);
 		return this.readSchema(this.schema, true);
 	}
-	scanSchema(schema, o, parent) {
-		if (!schema) return;
-		switch (schema._type) {
-			case 'bool': schema.bits = 1; schema.bool = true; o?.ints.push(schema); break;
-			case 'bits': schema.bytes = Math.ceil((schema.bits = schema.val) / 8); o?.ints.push(schema); break;
-			case 'float': schema.bytes = schema.val / 8; o?.floats.push(schema); break;
-			case 'string': if (schema.val) { schema.map = PackBytes.genMap(schema.val); schema.bits = schema.map.bits; } o?.[schema.map ? 'ints' : 'strings'].push(schema); break;
-			case 'blob': schema.bytes = schema.val; o?.blobs.push(schema); break;
-			case 'array': this.scanSchema(schema.val); o?.arrays.push(schema); break;
-			case 'schemas': schema.map = PackBytes.genMap(Object.keys(schema.val)); Object.values(schema.val).forEach(s => this.scanSchema(s)); o?.schemas.push(schema); break;
+	scanSchema(s, o, ...fields) {
+		if (!s) return;
+		switch (s._type) {
+			case 'bool': s.bits = 1; s.bool = true; o?.ints.push(s); break;
+			case 'bits': s.bytes = Math.ceil((s.bits = s.val) / 8); o?.ints.push(s); break;
+			case 'float': s.bytes = s.val / 8; o?.floats.push(s); break;
+			case 'string': if (s.val) { s.map = PackBytes.genMap(s.val); s.bits = s.map.bits; } o?.[s.map ? 'ints' : 'strings'].push(s); break;
+			case 'blob': s.bytes = s.val; o?.blobs.push(s); break;
+			case 'array': this.scanSchema(s.val); o?.arrays.push(s); break;
+			case 'schemas': s.map = PackBytes.genMap(Object.keys(s.val)); Object.values(s.val).forEach(s => this.scanSchema(s)); o?.schemas.push(s); break;
 			default: // object
-				if (!o) o = schema[PackBytes.objSchema] = PackBytes.newObjSchema();
-				for (let field in schema) {
-					const type = schema[field];
-					if (type._type) type.field = parent ? parent.concat(field) : field;
-					this.scanSchema(type, o, parent ? field : [ field ]);
+				if (!o) o = s[PackBytes.objSchema] = PackBytes.newObjSchema();
+				for (const field in s) {
+					if (s[field]._type) s[field].field = fields.concat(field);
+					this.scanSchema(s[field], o, ...fields.concat(field));
 				}
-				if (!parent) PackBytes.packInts(o);
+				if (!fields.length) PackBytes.packInts(o);
 		}
 	}
 	getDataSize(data, schema, top) {
@@ -177,13 +176,12 @@ export class PackBytes { // encoder and decoder
 	static objSchema = Symbol('objSchema');
 	static newObjSchema() { return { ints: [], int8: [], int16: [], int32: [], strings: [], blobs: [], floats: [], arrays: [], schemas: [] }; }
 	static numberToBits(num) { return Math.ceil(Math.log2(num + 1)) || 1; }
-	static get(obj, field) { return field.reduce?.((obj, field) => obj[field], obj) || obj[field]; }
+	static get(obj, field) { return field.reduce((obj, field) => obj[field], obj); }
 	static set(obj, field, val) {
-		if (Array.isArray(field)) field.reduce((obj, _field, i) => {
+		field.reduce((obj, _field, i) => {
 			if (i == field.length - 1) obj[_field] = val;
 			else return obj[_field] ??= {};
 		}, obj);
-		else obj[field] = val;
 	}
 }
 
