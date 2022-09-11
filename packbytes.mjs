@@ -19,8 +19,8 @@ export class PackBytes { // encoder and decoder
 		this.schema = JSON.parse(typeof schema == 'string' ? schema : JSON.stringify(schema));
 		this.scanSchema(this.schema);
 	}
-	encode(...data) {
-		if (this.schema._type != 'schemas' || Array.isArray(data[0])) data = data[0];
+	encode(schema, data) {
+		data = data ? [ schema, data ] : schema;
 		this.buf = new Buf(null, this.getDataSize(data, this.schema, true));
 		this.writeSchema(this.schema, data, true);
 		return this.buf.buf;
