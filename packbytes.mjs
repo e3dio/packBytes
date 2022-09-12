@@ -41,10 +41,7 @@ export class PackBytes { // encoder and decoder
 			case 'schemas': s.map = PackBytes.genMap(Object.keys(s.val)); Object.values(s.val).forEach(s => this.scanSchema(s)); o?.schemas.push(s); break;
 			default: // object
 				if (!o) o = s[PackBytes.objSchema] = PackBytes.newObjSchema();
-				for (const field in s) {
-					if (s[field]._type) s[field].field = fields.concat(field);
-					this.scanSchema(s[field], o, ...fields.concat(field));
-				}
+				for (const field in s) { const f = fields.concat(field); if (s[field]._type) s[field].field = f; this.scanSchema(s[field], o, ...f); }
 				if (!fields.length) PackBytes.packInts(o);
 		}
 	}
@@ -65,18 +62,18 @@ export class PackBytes { // encoder and decoder
 					case 'float': return size + data.length * type.bytes;
 					case 'string': return size + (data.length * type.map?.bytes || data.reduce((total, str) => Buf.strTotalLength(str) + total, 0));
 					case 'blob': return size + (data.length * type.bytes || data.reduce((total, blob) => Buf.getVarIntSize(Buf.length(blob)) + Buf.length(blob) + total, 0));
-					case 'array': return size + data.reduce((total, arr) => total + this.getDataSize(arr, type), 0);
-					case 'schemas': return size + data.length * type.map.bytes + data.reduce((total, data) => total + this.getDataSize(data[1], type.val[data[0]]), 0);
-					default: return size + data.reduce((total, obj) => total + this.getDataSize(obj, type), 0);
+					case 'array': return size + data.reduce((total, arr) => this.getDataSize(arr, type) + total, 0);
+					case 'schemas': return size + data.length * type.map.bytes + data.reduce((total, data) => this.getDataSize(data[1], type.val[data[0]]) + total, 0);
+					default: return size + data.reduce((total, obj) => this.getDataSize(obj, type) + total, 0);
 				}
 			case 'schemas': return schema.map.bytes + this.getDataSize(data[1], schema.val[data[0]], top);
 			default: // object
 				const o = schema[PackBytes.objSchema];
 				return o.bytes // covers bool, bits, float
-					+ o.strings.reduce((total, str) => total + Buf.strTotalLength(PackBytes.get(data, str.field)), 0)
-					+ o.blobs.reduce((total, blob) => { const length = blob.bytes || Buf.length(PackBytes.get(data, blob.field)); return total + length + (blob.bytes ? 0 : Buf.getVarIntSize(length)); }, 0)
-					+ o.arrays.reduce((total, arr) => total + this.getDataSize(PackBytes.get(data, arr.field), PackBytes.get(schema, arr.field)), 0)
-					+ o.schemas.reduce((total, s) => total + this.getDataSize(PackBytes.get(data, s.field), PackBytes.get(schema, s.field)), 0);
+					+ o.strings.reduce((total, str) => Buf.strTotalLength(PackBytes.get(data, str.field)) + total, 0)
+					+ o.blobs.reduce((total, blob) => { const length = blob.bytes || Buf.length(PackBytes.get(data, blob.field)); return length + (blob.bytes ? 0 : Buf.getVarIntSize(length)) + total; }, 0)
+					+ o.arrays.reduce((total, arr) => this.getDataSize(PackBytes.get(data, arr.field), PackBytes.get(schema, arr.field)) + total, 0)
+					+ o.schemas.reduce((total, s) => this.getDataSize(PackBytes.get(data, s.field), PackBytes.get(schema, s.field)) + total, 0);
 		}
 	}
 	writeSchema(schema, data, top) {
@@ -161,7 +158,7 @@ export class PackBytes { // encoder and decoder
 			}
 			(remaining < 16 ? o.int32 : remaining < 24 ? o.int16 : o.int8).push(ints32);
 		}
-		o.bytes = (o.int32.length * 4) + (o.int16.length * 2) + o.int8.length + o.floats.reduce((total, float) => total + float.bytes, 0);
+		o.bytes = (o.int32.length * 4) + (o.int16.length * 2) + o.int8.length + o.floats.reduce((total, float) => float.bytes + total, 0);
 	}
 	static genMap(values) {
 		const bits = PackBytes.numberToBits(values.length - 1);
