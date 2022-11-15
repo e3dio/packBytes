@@ -20,7 +20,7 @@ export class PackBytes { // encoder and decoder
 		this.scanSchema(this.schema);
 	}
 	encode(schema, data) {
-		data = data ? [ schema, data ] : schema;
+		data = this.schema._type == 'schemas' ? [ schema, data ] : schema;
 		this.buf = new Buf(null, this.getDataSize(data, this.schema, true));
 		this.writeSchema(this.schema, data, true);
 		return this.buf.buf;
@@ -193,7 +193,7 @@ export class Buf { // cross-platform buffer operations for Node.js and Web Brows
 		this.off += length;
 		return str;
 	}
-	writeString(str) {
+	writeString(str = '') {
 		if (!Buf.isNode) str = Buf.textEncoder.encode(str);
 		const length = Buf.isNode ? Buffer.byteLength(str) : str.length;
 		this.writeVarInt(length);
