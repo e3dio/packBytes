@@ -154,5 +154,5 @@ encoder = new PackBytes(schema)
 buf = encoder.encode(data) // encode data
 buf = encoder.encode(schema_name, data) // encode data with specific schema from 'schemas' type
 
-data = encoder.decode(buf) // decode, returns orginal data
+data = encoder.decode(buf) // decode, returns original data
 ```
