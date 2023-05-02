@@ -144,8 +144,8 @@ schema = blob // any length buffer
 schema = blob(x) // specific byte size buffer 
 schema = array(schema) // array of any schema type
 schema = array(schema).size(x) // specific length array
-schema = { field1: schema, field2: schema, .. } // object with multiple fields
-schema = schemas({ schema1: schema, schema2: schema, .. }) // multiple schemas mapped to 1 schema
+schema = { field1: schema, field2: schema, .. } // object with multiple fields, field names auto-map to integers
+schema = schemas({ schema1: schema, schema2: schema, .. }) // multiple schemas mapped to 1 schema, schema names auto-map to integers
 
 // create encoder by providing schema:
 // accepts schema object or JSON.stringify(schema) string for easy transfer from server to client:
