@@ -108,9 +108,11 @@ export class PackBytes { // encoder and decoder
 			case 'blob': return this.buf.readBlob(schema.bytes, top);
 			case 'array': 
 				const arr = [];
-				let length = schema._size || (!top && this.buf.readVarInt());
-				if (length) while (length--) arr.push(this.readSchema(schema.val));
-				else while (this.buf.hasMore) arr.push(this.readSchema(schema.val));
+				if (top) while (this.buf.hasMore) arr.push(this.readSchema(schema.val));
+				else {
+					let length = schema._size != null ? schema._size : this.buf.readVarInt();
+					if (length) while (length--) arr.push(this.readSchema(schema.val));
+				}
 				return arr;
 			case 'schemas':
 				const name = schema.map.index[this.buf.readVarInt()];
@@ -189,7 +191,7 @@ export class Buf { // cross-platform buffer operations for Node.js and Web Brows
 	}
 	readString() {
 		const length = this.readVarInt();
-		const str = Buf.isNode ? this.buf.toString('utf8', this.off, this.off + length) : Buf.textDecoder.decode(new Uint8Array(this.buf.buffer, this.off, length));
+		const str = length ? Buf.isNode ? this.buf.toString('utf8', this.off, this.off + length) : Buf.textDecoder.decode(new Uint8Array(this.buf.buffer, this.off, length)) : '';
 		this.off += length;
 		return str;
 	}
@@ -247,8 +249,8 @@ export class Buf { // cross-platform buffer operations for Node.js and Web Brows
 	get length() { return Buf.isNode ? this.buf.length : this.buf.byteLength; }
 	get hasMore() { return this.off < this.length; }
 	static getVarIntSize(int) { return int < 128 ? 1 : int < 16_384 ? 2 : 4; }
-	static strByteLength(str) { if (Buf.isNode) return Buffer.byteLength(str); let s = str.length; for (let i = str.length - 1; i >= 0; i--) { const code = str.charCodeAt(i); if (code > 0x7f && code <= 0x7ff) s++; else if (code > 0x7ff && code <= 0xffff) s += 2; if (code >= 0xDC00 && code <= 0xDFFF) i--; } return s; }
-	static strTotalLength(str) { const length = Buf.strByteLength(str); return length + Buf.getVarIntSize(length); }
+	static strByteLength(str = '') { if (Buf.isNode) return Buffer.byteLength(str); let s = str.length; for (let i = str.length - 1; i >= 0; i--) { const code = str.charCodeAt(i); if (code > 0x7f && code <= 0x7ff) s++; else if (code > 0x7ff && code <= 0xffff) s += 2; if (code >= 0xDC00 && code <= 0xDFFF) i--; } return s; }
+	static strTotalLength(str = '') { const length = Buf.strByteLength(str); return length + Buf.getVarIntSize(length); }
 	static length(buf) { return Buf.isNode ? buf.length : buf.byteLength; }
 	static isNode = typeof window != 'object';
 	static textEncoder = !Buf.isNode && new TextEncoder();
