@@ -20,7 +20,7 @@
 
 # Install:
 
-`npm i packbytes`
+`npm i github:e3dio/packbytes`
 
 # Schema:
 
