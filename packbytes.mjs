@@ -10,9 +10,9 @@ class Type { // schema types
 		this.val = val.length > 1 ? val : val[0];
 	}
 	size(size) { this._size = size; return this; }
-	static types = [ 'bool', 'bits', 'float', 'string', 'blob', 'array', 'schemas' ];
+	static types = [ 'bool', 'bits', 'float', 'string', 'blob', 'array', 'schemas', 'objectid', 'date' ];
 }
-export const [ bool, bits, float, string, blob, array, schemas ] = Type.types.map(t => new Type(t));
+export const [ bool, bits, float, string, blob, array, schemas, objectid, date ] = Type.types.map(t => new Type(t));
 
 export class PackBytes { // encoder and decoder
 	constructor(schema) {
@@ -37,6 +37,8 @@ export class PackBytes { // encoder and decoder
 			case 'float': s.bytes = s.val / 8; o?.floats.push(s); break;
 			case 'string': if (s.val) { s.map = PackBytes.genMap(s.val); s.bits = s.map.bits; } o?.[s.map ? 'ints' : 'strings'].push(s); break;
 			case 'blob': s.bytes = s.val; o?.blobs.push(s); break;
+			case 'objectid': s.bytes = 12; o?.objectids.push(s); break;
+			case 'date': s.bytes = 4; o?.dates.push(s); break;
 			case 'array': this.scanSchema(s.val); o?.arrays.push(s); break;
 			case 'schemas': s.map = PackBytes.genMap(Object.keys(s.val)); Object.values(s.val).forEach(s => this.scanSchema(s)); o?.schemas.push(s); break;
 			default: // object
@@ -53,6 +55,8 @@ export class PackBytes { // encoder and decoder
 			case 'float': return schema.bytes;
 			case 'string': return schema.map?.bytes || Buf.strTotalLength(data);
 			case 'blob': return schema.bytes || Buf.length(data) + (top ? 0 : Buf.getVarIntSize(Buf.length(data)));
+			case 'objectid': return schema.bytes;
+			case 'date': return schema.bytes;
 			case 'array': 
 				const type = schema.val;
 				const size = schema._size || top ? 0 : Buf.getVarIntSize(data.length);
@@ -62,6 +66,8 @@ export class PackBytes { // encoder and decoder
 					case 'float': return size + data.length * type.bytes;
 					case 'string': return size + (data.length * type.map?.bytes || data.reduce((total, str) => Buf.strTotalLength(str) + total, 0));
 					case 'blob': return size + (data.length * type.bytes || data.reduce((total, blob) => Buf.getVarIntSize(Buf.length(blob)) + Buf.length(blob) + total, 0));
+					case 'objectid': return size + data.length * type.bytes;
+					case 'date': return size + data.length * type.bytes;
 					case 'array': return size + data.reduce((total, arr) => this.getDataSize(arr, type) + total, 0);
 					case 'schemas': return size + data.length * type.map.bytes + data.reduce((total, data) => this.getDataSize(data[1], type.val[data[0]]) + total, 0);
 					default: return size + data.reduce((total, obj) => this.getDataSize(obj, type) + total, 0);
@@ -72,6 +78,8 @@ export class PackBytes { // encoder and decoder
 				return o.bytes // covers bool, bits, float
 					+ o.strings.reduce((total, str) => Buf.strTotalLength(PackBytes.get(data, str.field)) + total, 0)
 					+ o.blobs.reduce((total, blob) => { const length = blob.bytes || Buf.length(PackBytes.get(data, blob.field)); return length + (blob.bytes ? 0 : Buf.getVarIntSize(length)) + total; }, 0)
+					+ o.objectids.length * 12
+					+ o.dates.length * 4
 					+ o.arrays.reduce((total, arr) => this.getDataSize(PackBytes.get(data, arr.field), PackBytes.get(schema, arr.field)) + total, 0)
 					+ o.schemas.reduce((total, s) => this.getDataSize(PackBytes.get(data, s.field), PackBytes.get(schema, s.field)) + total, 0);
 		}
@@ -84,6 +92,8 @@ export class PackBytes { // encoder and decoder
 			case 'float': this.buf.writeFloat(data, schema.bytes); break;
 			case 'string': schema.map ? this.buf.writeUint(schema.map.values[data], schema.map.bytes) : this.buf.writeString(data); break;
 			case 'blob': this.buf.writeBlob(data, schema.bytes, top); break;
+			case 'objectid': this.buf.writeBlob(data.id, schema.bytes, top); break;
+			case 'date': this.buf.writeUint(Math.floor(data.getTime() / 1000), 4); break;
 			case 'array': if (!schema._size && !top) this.buf.writeVarInt(data.length); for (const item of data) this.writeSchema(schema.val, item); break;
 			case 'schemas': this.buf.writeVarInt(schema.map.values[data[0]]); this.writeSchema(schema.val[data[0]], data[1], top); break;
 			default: // object
@@ -94,6 +104,8 @@ export class PackBytes { // encoder and decoder
 				if (o.floats.length) for (const float of o.floats) this.buf.writeFloat(PackBytes.get(data, float.field), float.bytes);
 				if (o.strings.length) for (const str of o.strings) this.buf.writeString(PackBytes.get(data, str.field));
 				if (o.blobs.length) for (const blob of o.blobs) this.buf.writeBlob(PackBytes.get(data, blob.field), blob.bytes);
+				if (o.objectids.length) for (const objectid of o.objectids) this.buf.writeBlob(PackBytes.get(data, objectid.field).id, objectid.bytes);
+				if (o.dates.length) for (const date of o.dates) this.buf.writeUint(Math.floor(PackBytes.get(data, date.field).getTime() / 1000), 4);
 				if (o.arrays.length) for (const arr of o.arrays) this.writeSchema(PackBytes.get(schema, arr.field), PackBytes.get(data, arr.field));
 				if (o.schemas.length) for (const s of o.schemas) this.writeSchema(PackBytes.get(schema, s.field), PackBytes.get(data, s.field));
 		}
@@ -106,6 +118,12 @@ export class PackBytes { // encoder and decoder
 			case 'float': return this.buf.readFloat(schema.bytes);
 			case 'string': return schema.map ? schema.map.index[this.buf.readUint(schema.map.bytes)] : this.buf.readString();
 			case 'blob': return this.buf.readBlob(schema.bytes, top);
+			case 'objectid':
+				const blob = this.buf.readBlob(schema.bytes, top);
+				if (Buf.isNode) return blob.toString('hex');
+				let str = ''; for (let i = 0; i < blob.length; ++i) str += Buf.byteToHex[blob[i]];
+				return str;
+			case 'date': return new Date(this.buf.readUint(4) * 1000);
 			case 'array': 
 				const arr = [];
 				if (top) while (this.buf.hasMore) arr.push(this.readSchema(schema.val));
@@ -126,6 +144,8 @@ export class PackBytes { // encoder and decoder
 				if (o.floats.length) for (const float of o.floats) PackBytes.set(obj, float.field, this.buf.readFloat(float.bytes));
 				if (o.strings.length) for (const str of o.strings) PackBytes.set(obj, str.field, this.buf.readString());
 				if (o.blobs.length) for (const blob of o.blobs) PackBytes.set(obj, blob.field, this.buf.readBlob(blob.bytes));
+				if (o.objectids.length) for (const objectid of o.objectids) PackBytes.set(obj, objectid.field, this.readSchema(objectid));
+				if (o.dates.length) for (const date of o.dates) PackBytes.set(obj, date.field, this.readSchema(date));
 				if (o.arrays.length) for (const arr of o.arrays) PackBytes.set(obj, arr.field, this.readSchema(arr));
 				if (o.schemas.length) for (const s of o.schemas) { const name = s.map.index[this.buf.readVarInt()]; PackBytes.set(obj, s.field, [ name, this.readSchema(s.val[name]) ]); };
 				return obj;
@@ -173,7 +193,7 @@ export class PackBytes { // encoder and decoder
 	}
 	static isNode = typeof window != 'object';
 	static objSchema = Symbol('objSchema');
-	static newObjSchema() { return { ints: [], int8: [], int16: [], int32: [], strings: [], blobs: [], floats: [], arrays: [], schemas: [] }; }
+	static newObjSchema() { return { ints: [], int8: [], int16: [], int32: [], strings: [], blobs: [], objectids: [], dates: [], floats: [], arrays: [], schemas: [] }; }
 	static numberToBits(num) { return Math.ceil(Math.log2(num + 1)) || 1; }
 	static get(obj, field) { return field.reduce((obj, field) => obj[field], obj); }
 	static set(obj, field, val) {
@@ -255,4 +275,5 @@ export class Buf { // cross-platform buffer operations for Node.js and Web Brows
 	static isNode = typeof window != 'object';
 	static textEncoder = !Buf.isNode && new TextEncoder();
 	static textDecoder = !Buf.isNode && new TextDecoder();
+	static byteToHex = Array.from(Array(256)).map((a, i) => i.toString(16).padStart(2, '0'));
 }
