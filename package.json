@@ -1,7 +1,7 @@
 {
   "name": "packbytes",
-  "version": "1.0.7",
-  "description": "Cross-Platform Binary Data Encoder for Node.js and Web Browsers",
+  "version": "2.0.0",
+  "description": "Binary data encoder for Node.js and Web Browsers",
   "repository": "e3dio/packBytes",
-  "exports": "./packbytes.mjs"
+  "main": "./src/index.mjs"
 }
