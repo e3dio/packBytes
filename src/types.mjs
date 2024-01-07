@@ -1,3 +1,5 @@
+// Generic type objects for declaring schemas, allows nesting, setting values, and json export
+
 const genType = _type => {
 	const fn = val => ({ _type, val, size });
 	fn.toJSON = () => ({ _type });

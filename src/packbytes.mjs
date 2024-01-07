@@ -1,8 +1,10 @@
+// Cross platform (Node.js / Web Browser) buffer api:
 import { Buf } from './buf.mjs';
 
+// Binary encoder and decoder from declared schemas:
 export class PackBytes {
 	constructor(schema) {
-		this.schema = this.parse(schema);
+		this.schema = PackBytes.parse(schema);
 		this.type(this.schema).init?.(this.schema);
 	}
 	encode(schema, data) {
@@ -204,9 +206,9 @@ export class PackBytes {
 			Buf.isNode ? this.buf.buf.subarray(0, this.buf.off) : new Uint8Array(this.buf.buf.buffer, 0, this.buf.off)
 			: this.buf.buf;
 	}
-	parse(schema) { return JSON.parse(typeof schema == 'string' ? schema : JSON.stringify(schema)); }
-	inputs(schema, data) { return this.schema._type == 'schemas' ? [ schema, data ] : schema; }
 	type(schema) { return this.types[schema._type || 'object']; }
+	inputs(schema, data) { return this.schema._type == 'schemas' ? [ schema, data ] : schema; }
+	static parse(schema) { return JSON.parse(typeof schema == 'string' ? schema : JSON.stringify(schema)); }
 	static numberToBits(num) { return Math.ceil(Math.log2(num + 1)) || 1; }
 	static newObjSchema() { return ({ ints: [], int8: [], int16: [], int32: [] }); }
 	static objSchema = Symbol('objSchema');

@@ -4,8 +4,8 @@
 
 <p align="center">
 :dizzy: The <b>Fastest</b>, <b>Smallest</b>, and <b>Easiest</b> to use data encoder for JavaScript<br>
-:recycle: <b>Schemas</b> automate all encoding and decoding in a high-level interface<br>
-:satellite: Useful for <b>storing compact data</b> or <b>sending over network</b><br>
+:recycle: <b>Schemas</b> automate all encoding and decoding in high-level interface<br>
+:satellite: Useful for <b>storing</b> or <b>sending</b> compact data over network<br>
 :fast_forward: <a href="https://github.com/e3dio/packBytes#benchmark">Benchmark</a> is <b>50x</b> smaller than JSON and <b>5x</b> faster to encode
 </p>
 <h3 align="center"><b>Node.js</b> :heavy_check_mark: &nbsp;<b>Web Browsers</b> :heavy_check_mark:</h3>
@@ -20,18 +20,18 @@
 
 # Install:
 
-`npm i github:e3dio/packbytes`
+`npm i e3dio/packbytes`
 
 # Schema:
 
 - Define the structure of your data with a Schema
-- It will optimize and execute all low-level operations for you
+- Encoder/Decoder will optimize and execute all low-level operations for you
 - Creates a smaller encoding faster and easier than any other schema-based system:
 
 ```javascript
-// example schema with all data types:
+// Example schema with all data types:
 
-import { bool, bits, string, array, float, blob, schemas, PackBytes } from 'packbytes';
+import { bool, bits, float, varint, string, blob, objectid, uuid, date, lonlat, array, schemas } from 'packbytes';
 
 const schema = {
    a: bool,

@@ -1,5 +1,6 @@
-export class Buf { // Node uses Buffer, Browser uses DataView
-	constructor(bufOrSize) { // accepts number or Buffer or ArrayBuffer or TypedArray or DataView
+// Cross platform Node.js / Web Browser buffer library
+export class Buf {
+	constructor(bufOrSize) { // accepts Number or Buffer or ArrayBuffer or TypedArray or DataView
 		if (typeof bufOrSize == 'number') this.buf = Buf.isNode ? Buffer.allocUnsafe(bufOrSize) : new DataView(new ArrayBuffer(bufOrSize));
 		else this.buf = Buf.isNode ? bufOrSize instanceof ArrayBuffer ? Buffer.from(bufOrSize) : bufOrSize : new DataView(bufOrSize instanceof ArrayBuffer ? bufOrSize : bufOrSize.buffer);
 		this.off = 0;
