@@ -19,7 +19,10 @@ export class PackBytes {
 		bool: {
 			encode: (schema, data = 0) => this.writeUint(data, 1),
 			decode: (schema) => Boolean(this.readUint(1)),
-			init: (schema) => schema.bits = 1,
+			init: (schema) => {
+				schema.bits = 1;
+				schema.bool = true;
+			},
 		},
 		bits: {
 			encode: (schema, data = 0) => this.writeUint(Math.max(0, Math.min(data, schema.max)), schema.bytes),
@@ -62,7 +65,11 @@ export class PackBytes {
 			decode: (schema) => this.readBlob(16),
 		},
 		date: {
-			encode: (schema, data = PackBytes.defaultDate) => this.writeUint(Math.floor(data.getTime() / 1000), 4),
+			encode: (schema, data = PackBytes.defaultDate) => {
+				const seconds = Math.floor(data.getTime() / 1000);
+				if (data < 0 || seconds > 4_294_967_295) throw Error(`date ${date} outside range ${new Date(0)} - ${new Date(4294967295000)}`);
+				this.writeUint(seconds, 4);
+			},
 			decode: (schema) => new Date(this.readUint(4) * 1000),
 		},
 		lonlat: {
@@ -144,6 +151,7 @@ export class PackBytes {
 				if (!objSchema && _objSchema.ints.length) PackBytes.packInts(_objSchema);
 			},
 		},
+		null: { encode: () => {}, decode: () => null },
 	}
 	static genMap(values) {
 		const bits = PackBytes.numberToBits(values.length - 1);
@@ -276,7 +284,7 @@ export class PackBytes {
 			this.dataview = new DataView(this.dataview.buffer.transfer(this.dataview.byteLength * 2));
 		}
 	}
-	type(schema) { return this.types[schema._type || 'object']; }
+	type(schema) { return this.types[schema ? schema._type || 'object' : 'null']; }
 	inputs(schema, data) { return this.schema._type == 'schemas' ? [ schema, data ] : schema; }
 	static parse(schema) { return JSON.parse(typeof schema == 'string' ? schema : JSON.stringify(schema)); }
 	static numberToBits(num) { return Math.ceil(Math.log2(num + 1)) || 1; }
