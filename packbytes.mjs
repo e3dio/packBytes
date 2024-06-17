@@ -273,7 +273,12 @@ export class PackBytes {
 	}
 	checkSize(bytes) {
 		if (bytes + this.offset > this.dataview.byteLength) {
-			this.dataview = new DataView(this.dataview.buffer.transfer(this.dataview.byteLength * 2));
+			if (this.dataview.buffer.transfer) this.dataview = new DataView(this.dataview.buffer.transfer(this.dataview.byteLength * 2));
+			else { // backwards compatible for <= Node v20
+				const arraybuffer = new ArrayBuffer(this.dataview.byteLength * 2);
+				new Uint8Array(arraybuffer).set(new Uint8Array(this.dataview.buffer));
+				this.dataview = new DataView(arraybuffer);
+			}
 			this.checkSize(bytes);
 		}
 	}
