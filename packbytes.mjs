@@ -2,17 +2,17 @@ export class PackBytes {
 	constructor(schema) {
 		this.schema = PackBytes.parse(schema);
 		this.type(this.schema).init?.(this.schema);
+		this.dataview = new DataView(new ArrayBuffer(2 ** 14)); // 16,384
 	}
 	encode = (schema, data) => {
 		data = this.inputs(schema, data);
 		this.offset = 0;
-		this.dataview = new DataView(new ArrayBuffer(this.estimateSize(data)));
 		this.type(this.schema).encode(this.schema, data);
-		return this.sliceBuffer();
+		return new Uint8Array(this.dataview.buffer, 0, this.offset);
 	}
 	decode = (buf) => {
 		this.offset = 0;
-		this.dataview = new DataView(buf.buffer || buf);
+		this.decodeDV = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 		return this.type(this.schema).decode(this.schema);
 	}
 	types = {
@@ -204,15 +204,9 @@ export class PackBytes {
 			packed >>>= ints[i].bits;
 		} else ints[0].decoded = ints[0].bool ? Boolean(packed) : ints[0].map?.index[packed] ?? packed;
 	}
-	estimateSize() {
-		return 8000;
-	}
-	sliceBuffer() { // non-copy sliced view
-		return this.offset < this.dataview.byteLength ? new Uint8Array(this.dataview.buffer, 0, this.offset) : this.dataview;
-	}
 	readString() {
 		const length = this.readVarInt();
-		const str = length ? PackBytes.textDecoder.decode(new Uint8Array(this.dataview.buffer, this.offset, length)) : '';
+		const str = length ? PackBytes.textDecoder.decode(new Uint8Array(this.decodeDV.buffer, this.offset, length)) : '';
 		this.offset += length;
 		return str;
 	}
@@ -225,15 +219,15 @@ export class PackBytes {
 	}
 	readBlob(bytes) {
 		const length = bytes || this.readVarInt();
-		const blob = new Uint8Array(this.dataview.buffer, this.offset, length);
+		const blob = new Uint8Array(this.decodeDV.buffer, this.offset, length);
 		this.offset += length;
 		return blob;
 	}
-	writeBlob(buf, bytes) {
+	writeBlob(buf, bytes) { // takes Buffer, TypedArray
 		const length = bytes || buf.byteLength;
 		if (bytes) {
-			if (buf.byteLength > bytes) buf = buf.subarray(0, bytes); // zero copy sliced view
-			else if (buf.byteLength < bytes) { // fill zero in case base buffer is not zero filled
+			if (buf.byteLength > bytes) buf = buf.subarray(0, bytes);
+			else if (buf.byteLength < bytes) { // fill zero
 				const newBuf = new Uint8Array(bytes);
 				newBuf.set(buf);
 				buf = newBuf;
@@ -244,7 +238,7 @@ export class PackBytes {
 		this.offset += length;
 	}
 	readUint(bytes) {
-		var int = this.dataview[({ 1: 'getUint8', 2: 'getUint16', 4: 'getUint32' })[bytes]](this.offset);
+		var int = this.decodeDV[({ 1: 'getUint8', 2: 'getUint16', 4: 'getUint32' })[bytes]](this.offset);
 		this.offset += bytes;
 		return int;
 	}
@@ -254,7 +248,7 @@ export class PackBytes {
 		this.offset += bytes;
 	}
 	readFloat(bytes) {
-		const float = this.dataview[({ 4: 'getFloat32', 8: 'getFloat64' })[bytes]](this.offset);
+		const float = this.decodeDV[({ 4: 'getFloat32', 8: 'getFloat64' })[bytes]](this.offset);
 		this.offset += bytes;
 		return float;
 	}
@@ -278,10 +272,9 @@ export class PackBytes {
 		throw Error(`varInt max 1,073,741,823 exceeded: ${int}`);
 	}
 	checkSize(bytes) {
-		//console.log('checkSize',bytes,this.offset, this.dataview.byteLength)
 		if (bytes + this.offset > this.dataview.byteLength) {
-			console.log('RESIZE BUFFER', bytes, this.offset, this.dataview.byteLength);
 			this.dataview = new DataView(this.dataview.buffer.transfer(this.dataview.byteLength * 2));
+			this.checkSize(bytes);
 		}
 	}
 	type(schema) { return this.types[schema ? schema._type || 'object' : 'null']; }
