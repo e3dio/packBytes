@@ -273,7 +273,7 @@ export class PackBytes {
 	}
 	checkSize(bytes) {
 		if (bytes + this.offset > this.dataview.byteLength) {
-			if (this.dataview.buffer.transfer) this.dataview = new DataView(this.dataview.buffer.transfer(this.dataview.byteLength * 2));
+			if (false) this.dataview = new DataView(this.dataview.buffer.transfer(this.dataview.byteLength * 2));
 			else { // backwards compatible for <= Node v20
 				const arraybuffer = new ArrayBuffer(this.dataview.byteLength * 2);
 				new Uint8Array(arraybuffer).set(new Uint8Array(this.dataview.buffer));

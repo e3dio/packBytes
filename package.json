@@ -1,7 +1,0 @@
-{
-  "name": "packbytes",
-  "version": "2.1.0",
-  "description": "Binary data encoder for JavaScript",
-  "repository": "e3dio/packBytes",
-  "main": "./packbytes.mjs"
-}
