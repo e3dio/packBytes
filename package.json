@@ -1,0 +1,4 @@
+{
+	"name": "packbytes",
+	"exports": "./packbytes.mjs"
+}
