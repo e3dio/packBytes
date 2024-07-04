@@ -132,16 +132,21 @@ Encoding | time (ns) | bytes
 
 ```javascript
 // all available exports:
-import { bool, bits, string, array, float, blob, schemas, PackBytes } from 'packbytes';
+import { bool, bits, string, float, blob, varint, objectid, uuid, date, lonlat, array, schemas, PackBytes } from 'packbytes';
 
 // create a schema using any combination or nesting of schema types:
 schema = bool // true or false
 schema = bits(x) // x number bits for unsigned integer (max integer = 2**x-1)
 schema = string // string of any length
-schema = string('str1', 'str2', ..) // any of specific strings, auto-maps to integer
+schema = string([ 'str1', 'str2', .. ]) // any of specific strings, auto-maps to integer
 schema = float(x) // 32 or 64 bit floating point number
 schema = blob // any length buffer
 schema = blob(x) // specific byte size buffer 
+schema = varint // variable length integer (max integer = 1_073_741_823) 
+schema = objectid // MongoDB ObjectID
+schema = uuid // MongoDB BSON UUID object
+schema = date // javascript Date
+schema = lonlat // coordinates [ longitude, latitude ]
 schema = array(schema) // array of any schema type
 schema = array(schema).size(x) // specific length array
 schema = { field1: schema, field2: schema, .. } // object with multiple fields, field names auto-map to integers
