@@ -12,7 +12,7 @@ export class PackBytes {
 	}
 	decode = (buf) => {
 		this.offset = 0;
-		this.decodeDV = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+		this.decodeDV = buf.buffer ? new DataView(buf.buffer, buf.byteOffset, buf.byteLength) : new DataView(buf);
 		return this.type(this.schema).decode(this.schema);
 	}
 	types = {
