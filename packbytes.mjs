@@ -19,9 +19,8 @@ export const PackBytes = (schema) => {
 			encode: (schema, data = 0) => writeUint(data, 1),
 			decode: (schema) => Boolean(readUint(1)),
 			init: (schema) => {
-				schema.bits = 1; // schemas with "bits" field get packed into 32 bit spaces by packInts() if schema is child of object, skipping encode() fn
-				schema.maxInt = 1;
 				schema.bool = true;
+				schema.bits = 1; // schemas with "bits" field get packed into 32 bit spaces by packInts() if schema is child of object, skipping encode() fn
 			},
 		},
 		bits: {
