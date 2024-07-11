@@ -1,12 +1,13 @@
 <p align="center"><img height="220" src="https://i.giphy.com/media/QpVUMRUJGokfqXyfa1/giphy.webp"></p>
 
-<h1 align="center">packBytes</h1>
-
+<h1 align="center">PackBytes</h1>
+<h3 align="center">Binary data encoder for JavaScript.</h3>
+<br>
 <p align="center">
-:dizzy: The <b>Fastest</b>, <b>Smallest</b>, and <b>Easiest</b> to use data encoder for JavaScript<br>
-:recycle: <b>Schemas</b> automate all encoding and decoding in high-level interface<br>
-:satellite: Useful for <b>storing</b> or <b>sending</b> compact data over network<br>
-:fast_forward: <a href="https://github.com/e3dio/packBytes#benchmark">Benchmark</a> is <b>50x</b> smaller than JSON and <b>5x</b> faster to encode
+:dizzy: <b>Fast</b>, <b>Small</b>, and <b>Easy</b> to use.<br>
+:recycle: <b>Schemas</b> automate encoding in high-level interface.<br>
+:satellite: Useful for <b>storing</b> or <b>sending</b> compact data over network.<br>
+:fast_forward: <a href="https://github.com/e3dio/packBytes#benchmark">Benchmark</a> is <b>50x</b> smaller than JSON and <b>5x</b> faster to encode.
 </p>
 <h3 align="center"><b>Node.js</b> :heavy_check_mark: &nbsp;<b>Web Browsers</b> :heavy_check_mark:</h3>
 
@@ -28,7 +29,7 @@
 - Encoder/Decoder will optimize and execute all low-level operations for you
 - Creates a smaller encoding faster and easier than any other schema-based system:
 
-```javascript
+```js
 // Example schema with all data types:
 
 import { bool, bits, float, varint, string, blob, objectid, uuid, date, lonlat, array, schemas } from 'packbytes';
@@ -136,7 +137,7 @@ import { bool, bits, string, float, blob, varint, objectid, uuid, date, lonlat, 
 
 // create a schema using any combination or nesting of schema types:
 schema = bool // true or false
-schema = bits(x) // x number bits for unsigned integer (max integer = 2**x-1)
+schema = bits(x) // x number bits for unsigned integer (max integer = 2**x - 1)
 schema = string // string of any length
 schema = string([ 'str1', 'str2', .. ]) // any of specific strings, auto-maps to integer
 schema = float(x) // 32 or 64 bit floating point number
