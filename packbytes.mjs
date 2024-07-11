@@ -1,16 +1,17 @@
-export const PackBytes = (schema) => { // takes schema object or JSON.stringify(schema) string
-	const constructor = () => {
+export const PackBytes = (schema) => {
+	const init = () => {
 		schema = parse(schema);
 		initialize(schema);
 		setEncodeBuffer(new ArrayBuffer(2 ** 14));
+		return { encode, decode };
 	};
-	const encode = (schemaName, data) => { // takes (data) or (schemaName, data)
+	const encode = (name, data) => {
 		offset = 0;
-		data = parseInputs(schemaName, data);
+		data = parseInputs(name, data);
 		encodeSchema(schema, data);
 		return new Uint8Array(encodeAB, 0, offset);
 	};
-	const decode = (buf) => { // takes Buffer, TypedArray, ArrayBuffer
+	const decode = (buf) => {
 		offset = 0;
 		setDecodeBuffer(buf);
 		return decodeSchema(schema);
@@ -282,9 +283,8 @@ export const PackBytes = (schema) => { // takes schema object or JSON.stringify(
 		}
 	};
 
-	constructor();
-	return { encode, decode };
 	var offset, encodeAB, encodeDV, encodeUA, decodeDV, decodeUA;
+	return init();
 };
 
 const genMap = (values) => {
