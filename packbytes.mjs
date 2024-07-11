@@ -1,14 +1,12 @@
 export const PackBytes = (schema) => {
 	const init = () => {
-		schema = parse(schema);
-		initialize(schema);
+		initialize(schema = parse(schema));
 		setEncodeBuffer(new ArrayBuffer(2 ** 14));
 		return { encode, decode };
 	};
 	const encode = (name, data) => {
 		offset = 0;
-		data = parseInputs(name, data);
-		encodeSchema(schema, data);
+		encodeSchema(schema, parseInputs(name, data));
 		return new Uint8Array(encodeAB, 0, offset);
 	};
 	const decode = (buf) => {
@@ -283,7 +281,8 @@ export const PackBytes = (schema) => {
 		}
 	};
 
-	var offset, encodeAB, encodeDV, encodeUA, decodeDV, decodeUA;
+	let offset, encodeAB, encodeDV, encodeUA, decodeDV, decodeUA;
+
 	return init();
 };
 
