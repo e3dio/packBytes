@@ -1,7 +1,6 @@
-import { bool, bits, string, array, float, blob, schemas, PackBytes } from '../packbytes.mjs';
+import { bool, bits, string, array, float, blob, schemas, PackBytes } from '../packbytes3.mjs';
 export const logs = [];
 const log = (...msg) => console.log(...msg) || logs.push(msg);
-const isNode = PackBytes.isNode;
 
 const tests = [
 	{ schema: bool, data: true },
@@ -11,11 +10,11 @@ const tests = [
 	{ schema: bits(8), data: 255 },
 	{ schema: bits(32), data: 4294967295 },
 	{ schema: string, data: 'str' },
-	{ schema: string('str1', 'str2'), data: 'str2' },
+	{ schema: string([ 'str1', 'str2' ]), data: 'str2' },
 	//{ schema: float(32), data: 1.33 },
 	//{ schema: float(64), data: 12345678.901234 },
-	{ schema: blob, data: isNode ? Buffer.from([ 0, 1 ]) : new Uint8Array([ 0, 1 ]) },
-	{ schema: blob(3), data: isNode ? Buffer.from([ 0, 1, 2 ]) : new Uint8Array([ 0, 1, 2 ]) },
+	{ schema: blob, data: new Uint8Array([ 0, 1 ]) },
+	{ schema: blob(3), data: new Uint8Array([ 0, 1, 2 ]) },
 	{ schema: array(bits(2)), data: [ 0, 1, 2, 3 ] },
 	{ schema: schemas({ s1: null, s2: bits(3) }), data: [ 's2', 3 ] },
 ];
@@ -41,15 +40,15 @@ let fail;
 tests.forEach((t, i) => {
 	if (fail) return;
 	const json = JSON.stringify(t.schema);
-	const encoder = new PackBytes(json);
+	const { encode, decode } = PackBytes(json);
 	log('');
 	log('TEST', i + 1);
-	log(json);
-	log(JSON.stringify(t.data));
+	log('schema:', json);
+	log('data:', JSON.stringify(t.data));
 	try {
-		var buf = encoder.encode(t.data);
-		log(buf, buf.length || buf.byteLength);
-		var result = encoder.decode(buf);
+		var buf = encode(t.data);
+		log('buf:', buf, buf.length || buf.byteLength);
+		var result = decode(buf);
 	} catch (e) {
 		log('');
 		log('FAIL:');
@@ -60,8 +59,8 @@ tests.forEach((t, i) => {
 	if (JSON.stringify(result) == JSON.stringify(t.data)) return;
 	log('');
 	log('FAIL:');
-	log(JSON.stringify(t.data));
-	log(JSON.stringify(result));
+	log('data:', JSON.stringify(t.data));
+	log('result:', JSON.stringify(result));
 	log('');
 	fail = true;
 });

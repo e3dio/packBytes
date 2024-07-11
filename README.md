@@ -71,7 +71,7 @@ const schema = array({
    c: bits(5)
 });
 
-const encoder = new PackBytes(schema);
+const { encode, decode } = PackBytes(schema);
 ```
 ### Encode:
 ```javascript
@@ -81,7 +81,7 @@ const data = [
    { a: true, b: 3, c: 31 }
 ];
 
-const buf = encoder.encode(data);
+const buf = encode(data);
 
 // buf.length == 3, encoded to 3 bytes, 24x smaller than JSON.stringify(data) at 73 bytes
 
@@ -90,7 +90,7 @@ saveToDisk(buf);
 ```
 ### Decode:
 ```javascript
-const data = encoder.decode(buf);
+const data = decode(buf);
 
 console.log(data);
 // [
@@ -154,10 +154,10 @@ schema = schemas({ schema1: schema, schema2: schema, .. }) // multiple schemas m
 
 // create encoder by providing schema:
 // accepts schema object or JSON.stringify(schema) string for easy transfer from server to client:
-encoder = new PackBytes(schema)
+const { encode, decode } = PackBytes(schema)
 
-buf = encoder.encode(data) // encode data
-buf = encoder.encode(schema_name, data) // encode data with specific schema from 'schemas' type
+buf = encode(data) // encode data
+buf = encode(schema_name, data) // encode data with specific schema from 'schemas' type
 
-data = encoder.decode(buf) // decode, returns original data
+data = decode(buf) // decode, returns original data
 ```
