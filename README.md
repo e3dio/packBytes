@@ -39,7 +39,7 @@ const schema = {
    c: bits(7),
    d: bits(25),
    e: string,
-   x: string('str1', 'str2'),
+   x: string([ 'str1', 'str2' ]),
    y: array(bits(5)),
    z: array({
       a: float(32),
@@ -48,11 +48,11 @@ const schema = {
       d: blob(12),
       e: array(blob),
       f: array(string),
-      1: array(string('str1', 'str2')),
-      2: array(string('str1', 'str2')).size(3),
+      1: array(string([ 'str1', 'str2' ])),
+      2: array(string([ 'str1', 'str2' ])).size(3),
       3: array(array(bits(7))),
       4: schemas({ name1: bool, name2: array(bits(3)).size(2) }),
-      5: array(schemas({ s1: string, s2: { field1: bool, field2: array(string('str1', 'str2')) } }))
+      5: array(schemas({ s1: string, s2: { field1: bool, field2: array(string([ 'str1', 'str2' ])) } }))
    })
 };
 ```
