@@ -41,7 +41,7 @@ export const PackBytes = (schema) => {
 			encode: (schema, data = 0) => writeFloat(data, schema.bytes),
 			decode: (schema) => readFloat(schema.bytes),
 			init: (schema) => {
-				if (val != 32 || val != 64) throw TypeError(`float must be 32 or 64 bit, received "${val}"`);
+				if (schema.val != 32 || schema.val != 64) throw TypeError(`float must be 32 or 64 bit, received "${schema.val}"`);
 				schema.bytes = schema.val / 8;
 			},
 		},
