@@ -52,7 +52,6 @@ const types = {
 		decode: (buf, schema) => schema.map ? schema.map.index[readUint(buf, schema.map.bytes)] : readString(buf),
 		init: (schema) => {
 			if (schema.val) {
-				if (!schema.val.length) throw TypeError(`schema string(value) must be array of strings`);
 				schema.map = genMap(schema.val);
 				schema.bits = schema.map.bits;
 			}
@@ -274,7 +273,7 @@ const writeInts = (buf, bytes, ints) => {
 		const value = int.map ? int.map.values[int.data] : int.bool ? int.data ? 1 : 0 : int.data;
 		if (!(value >= 0 && value <= maxInt[int.bits])) throw RangeError(`field "${int[fieldName]}" with value "${value}" out of range [ 0 - ${maxInt[int.bits]} ]`);
 		packed <<= int.bits;
-		packed |= value
+		packed |= value;
 	}
 	writeUint(buf, packed >>> 0, bytes);
 };
@@ -289,12 +288,9 @@ const readInts = (buf, bytes, ints) => {
 const setData = (schema, data) => {
 	for (const field in schema) {
 		const childSchema = schema[field];
-		const childData = data[field];
-		if (childSchema.bits) childSchema.data = childData; // attaches data to schema
-		if (!childSchema._type) {
-			if (childData === undefined) throw Error(`Packbytes: no data for field "${field}"`);
-			setData(childSchema, childData);
-		}
+		const childData = data?.[field] || 0;
+		if (childSchema.bits) childSchema.data = childData;
+		if (isObject(childSchema)) setData(childSchema, childData);
 	}
 };
 const genMap = (values) => {
@@ -307,6 +303,7 @@ const genMap = (values) => {
 	};
 };
 
+const isObject = schema => !schema._type;
 const maxInt = Array.from(Array(33), (x, i) => 2**i - 1);
 const numberToBits = (num) => Math.ceil(Math.log2(num + 1)) || 1;
 const newObjSchema = () => ({ ints: [], int8: [], int16: [], int32: [] });
