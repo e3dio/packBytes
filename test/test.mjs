@@ -47,7 +47,7 @@ tests.forEach((t, i) => {
 	log('data:', JSON.stringify(t.data));
 	try {
 		var buf = encode(t.data);
-		log('buf:', buf, buf.length || buf.byteLength);
+		log('buf:', buf);
 		var result = decode(buf);
 	} catch (e) {
 		log('');
@@ -60,6 +60,7 @@ tests.forEach((t, i) => {
 	log('');
 	log('FAIL:');
 	log('data:', JSON.stringify(t.data));
+	log('result:', result);
 	log('result:', JSON.stringify(result));
 	log('');
 	fail = true;

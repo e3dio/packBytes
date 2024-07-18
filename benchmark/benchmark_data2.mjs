@@ -9,7 +9,7 @@ const data = { field1: true, field2: false, field3: 3, field4: 7, field5: 15, fi
 const proto = await protobuf.load('./protobuf_schemas/data2.proto');
 const protoEncoder = proto.lookupType('userpackage.Data');
 const avscEncoder = avsc.Type.forValue(data);
-const { encode, decode } = new PackBytes({ field1: bool, field2: bool, field3: bits(2), field4: bits(3), field5: bits(4), field6: bits(5), field7: bits(6), field8: bits(10) });
+const { encode, decode } = PackBytes({ field1: bool, field2: bool, field3: bits(2), field4: bits(3), field5: bits(4), field6: bits(5), field7: bits(6), field8: bits(10) });
 
 const encodeFns = {
    json: data => Buffer.from(JSON.stringify(data)),
