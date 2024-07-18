@@ -216,7 +216,7 @@ const writeString = (buf, str) => {
 	const uint8array = textEncoder.encode(str);
 	writeVarInt(buf, uint8array.length);
 	checkSize(buf, uint8array.length);
-	new Uint8Array(buf.encodeDV.buffer, buf.offset, uint8array.length).set(uint8array);
+	buf.encodeUA.set(uint8array, buf.offset);
 	buf.offset += uint8array.length;
 };
 const readString = (buf) => {
