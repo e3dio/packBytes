@@ -33,7 +33,7 @@ const types = {
 		encode: (buf, schema, data = 0) => writeFloat(buf, data, schema.bytes),
 		decode: (buf, schema) => readFloat(buf, schema.bytes),
 		init: (schema) => {
-			if (schema.val != 32 || schema.val != 64) throw TypeError(`float must be 32 or 64 bit, received "${schema.val}"`);
+			if (schema.val != 32 && schema.val != 64) throw TypeError(`float must be 32 or 64 bit, received "${schema.val}"`);
 			schema.bytes = schema.val / 8;
 		},
 	},
