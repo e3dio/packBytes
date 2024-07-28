@@ -70,12 +70,8 @@ const types = {
 		decode: (buf, schema) => readBlob(buf, 16),
 	},
 	date: {
-		encode: (buf, schema, data = defaultDate) => {
-			const seconds = Math.floor(data.getTime() / 1000);
-			if (seconds < 0 || seconds > 4_294_967_295) throw RangeError(`field "${schema[fieldName]}" with date "${date}" outside range [ ${new Date(0)} - ${new Date(4_294_967_295_000)} ]`);
-			writeUint(buf, seconds, 4);
-		},
-		decode: (buf, schema) => new Date(readUint(buf, 4) * 1000),
+		encode: (buf, schema, data = defaultDate) => writeFloat(buf, data.getTime(), schema.val == 32 ? 4 : 8),
+		decode: (buf, schema) => new Date(readFloat(buf, schema.val == 32 ? 4 : 8)),
 	},
 	lonlat: {
 		encode: (buf, schema, data = defaultLonlat) => {
