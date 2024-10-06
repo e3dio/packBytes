@@ -98,9 +98,7 @@ const types = {
 				const p = newPack();
 				for (let i = 0; i < length; i++) p.ints.push({ bits: childSchema.val, index: i });
 				packInts(p);
-				const arr = Array.from({ length });
-				readPack(buf, p, arr);
-				return arr;
+				return readPack(buf, p, Array(length));
 			}
 			const arr = [];
 			for (let i = length; i > 0; i--) arr.push(decodeSchema(buf, childSchema));
@@ -304,6 +302,7 @@ const readPack = (buf, o, array) => {
 	if (o.int8.length) for (const ints of o.int8) readInts(buf, 1, ints, array);
 	if (o.int16.length) for (const ints of o.int16) readInts(buf, 2, ints, array);
 	if (o.int32.length) for (const ints of o.int32) readInts(buf, 4, ints, array);
+	return array;
 };
 const readInts = (buf, bytes, ints, array) => {
 	let packed = readUint(buf, bytes);
@@ -338,7 +337,7 @@ const maxInt = Array.from(Array(33), (x, i) => 2**i - 1);
 const numberToBits = (num) => Math.ceil(Math.log2(num + 1)) || 1;
 const newPack = () => ({ ints: [], int8: [], int16: [], int32: [] });
 const uint8arrayToHex = (uint8) => uint8.reduce((hex, byte) => hex + byte.toString(16).padStart(2, '0'), '');
-const useArrayPacking = s => s._type == 'bits' && (s.val <= 6 || s.val == 9 || s.val == 10);
+const useArrayPacking = s => s.bits && s._type && (s.val <= 6 || s.val == 9 || s.val == 10);
 const fieldName = Symbol('fieldName');
 const pack = Symbol('pack');
 const defaultBlob = new Uint8Array(0);
