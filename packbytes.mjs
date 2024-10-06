@@ -337,7 +337,7 @@ const maxInt = Array.from(Array(33), (x, i) => 2**i - 1);
 const numberToBits = (num) => Math.ceil(Math.log2(num + 1)) || 1;
 const newPack = () => ({ ints: [], int8: [], int16: [], int32: [] });
 const uint8arrayToHex = (uint8) => uint8.reduce((hex, byte) => hex + byte.toString(16).padStart(2, '0'), '');
-const useArrayPacking = s => s.bits && s._type && (s.val <= 6 || s.val == 9 || s.val == 10);
+const useArrayPacking = s => s.bits && s._type && (s.bits <= 6 || s.bits == 9 || s.bits == 10);
 const fieldName = Symbol('fieldName');
 const pack = Symbol('pack');
 const defaultBlob = new Uint8Array(0);
