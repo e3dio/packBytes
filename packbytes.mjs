@@ -84,7 +84,7 @@ const types = {
 		encode: (buf, schema, data = []) => {
 			const childSchema = schema.val;
 			if (!schema._size) writeVarInt(buf, data.length);
-			if (childSchema._type == 'bits') {
+			if (useArrayPacking(childSchema)) {
 				const p = newPack();
 				data.forEach((d, i) => p.ints.push({ bits: childSchema.val, index: i, data: d }));
 				packInts(p);
@@ -94,7 +94,7 @@ const types = {
 		decode: (buf, schema) => {
 			const childSchema = schema.val;
 			const length = schema._size || readVarInt(buf);
-			if (childSchema._type == 'bits') {
+			if (useArrayPacking(childSchema)) {
 				const p = newPack();
 				for (let i = 0; i < length; i++) p.ints.push({ bits: childSchema.val, index: i });
 				packInts(p);
@@ -301,7 +301,7 @@ const writeInts = (buf, bytes, ints) => {
 	writeUint(buf, packed >>> 0, bytes);
 };
 const readPack = (buf, o, array) => {
-	if (o.int8.length) for (const ints of o.int8) readInts(buf, 1, ints, array); // attaches decoded value to schema
+	if (o.int8.length) for (const ints of o.int8) readInts(buf, 1, ints, array);
 	if (o.int16.length) for (const ints of o.int16) readInts(buf, 2, ints, array);
 	if (o.int32.length) for (const ints of o.int32) readInts(buf, 4, ints, array);
 };
@@ -338,6 +338,7 @@ const maxInt = Array.from(Array(33), (x, i) => 2**i - 1);
 const numberToBits = (num) => Math.ceil(Math.log2(num + 1)) || 1;
 const newPack = () => ({ ints: [], int8: [], int16: [], int32: [] });
 const uint8arrayToHex = (uint8) => uint8.reduce((hex, byte) => hex + byte.toString(16).padStart(2, '0'), '');
+const useArrayPacking = s => s._type == 'bits' && (s.val <= 6 || s.val == 9 || s.val == 10);
 const fieldName = Symbol('fieldName');
 const pack = Symbol('pack');
 const defaultBlob = new Uint8Array(0);
