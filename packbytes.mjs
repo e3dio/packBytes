@@ -86,7 +86,7 @@ const types = {
 			if (!schema._size) writeVarInt(buf, data.length);
 			if (useArrayPacking(childSchema)) {
 				const p = newPack();
-				data.forEach((d, i) => p.ints.push({ bits: childSchema.val, index: i, data: d }));
+				data.forEach((d, i) => p.ints.push({ bits: childSchema.bits, index: i, bool: childSchema.bool, map: childSchema.map, data: d }));
 				packInts(p);
 				writePack(buf, p);
 			} else for (const item of data) encodeSchema(buf, childSchema, item);
@@ -96,7 +96,7 @@ const types = {
 			const length = schema._size || readVarInt(buf);
 			if (useArrayPacking(childSchema)) {
 				const p = newPack();
-				for (let i = 0; i < length; i++) p.ints.push({ bits: childSchema.val, index: i });
+				for (let i = 0; i < length; i++) p.ints.push({ bits: childSchema.bits, index: i, bool: childSchema.bool, map: childSchema.map  });
 				packInts(p);
 				return readPack(buf, p, Array(length));
 			}
