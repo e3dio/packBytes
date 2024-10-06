@@ -16,6 +16,8 @@ const tests = [
 	{ schema: blob, data: new Uint8Array([ 0, 1 ]) },
 	{ schema: blob(3), data: new Uint8Array([ 0, 1, 2 ]) },
 	{ schema: array(bits(2)), data: [ 0, 1, 2, 3 ] },
+	{ schema: array(bits(3)), data: [ 0, 1, 2, 3, 4, 5, 6, 7 ] },
+	{ schema: array(bits(5)), data: Array.from({ length: 32 }).map((x, i) => i) },
 	{ schema: schemas({ s1: null, s2: bits(3) }), data: [ 's2', 3 ] },
 ];
 tests.push({

@@ -82,16 +82,28 @@ const types = {
 	},
 	array: {
 		encode: (buf, schema, data = []) => {
+			const childSchema = schema.val;
 			if (!schema._size) writeVarInt(buf, data.length);
-			for (const item of data) encodeSchema(buf, schema.val, item);
+			if (childSchema._type == 'bits') {
+				const p = newPack();
+				data.forEach((d, i) => p.ints.push({ bits: childSchema.val, index: i, data: d }));
+				packInts(p);
+				writePack(buf, p);
+			} else for (const item of data) encodeSchema(buf, childSchema, item);
 		},
 		decode: (buf, schema) => {
-			const arr = [];
+			const childSchema = schema.val;
 			const length = schema._size || readVarInt(buf);
-			for (let i = length; i > 0; i--) {
-				const x = decodeSchema(buf, schema.val);
-				arr.push(x);
+			if (childSchema._type == 'bits') {
+				const p = newPack();
+				for (let i = 0; i < length; i++) p.ints.push({ bits: childSchema.val, index: i });
+				packInts(p);
+				const arr = Array.from({ length });
+				readPack(buf, p, arr);
+				return arr;
 			}
+			const arr = [];
+			for (let i = length; i > 0; i--) arr.push(decodeSchema(buf, childSchema));
 			return arr;
 		},
 		init: (schema) => initialize(schema.val),
@@ -116,12 +128,10 @@ const types = {
 	},
 	object: {
 		encode: (buf, schema, data) => {
-			const o = schema[objSchema];
-			if (o) {
+			const p = schema[pack];
+			if (p) {
 				setData(schema, data); // attaches bits data to schema
-				if (o.int8.length) for (const ints of o.int8) writeInts(buf, 1, ints);
-				if (o.int16.length) for (const ints of o.int16) writeInts(buf, 2, ints);
-				if (o.int32.length) for (const ints of o.int32) writeInts(buf, 4, ints);
+				writePack(buf, p);
 			}
 			for (const field in schema) {
 				const childSchema = schema[field];
@@ -130,27 +140,23 @@ const types = {
 			}
 		},
 		decode: (buf, schema) => {
-			const obj = {}, o = schema[objSchema];
-			if (o) {
-				if (o.int8.length) for (const ints of o.int8) readInts(buf, 1, ints); // attaches decoded value to schema
-				if (o.int16.length) for (const ints of o.int16) readInts(buf, 2, ints);
-				if (o.int32.length) for (const ints of o.int32) readInts(buf, 4, ints);
-			}
+			const obj = {}, p = schema[pack];
+			if (p) readPack(buf, p); // attaches decoded value to schema
 			for (const field in schema) {
 				const childSchema = schema[field];
 				obj[field] = childSchema.decoded ?? decodeSchema(buf, childSchema);
 			}
 			return obj;
 		},
-		init: (schema, parentObjSchema) => {
-			const o = parentObjSchema || (schema[objSchema] = newObjSchema()); // use parent objectSchema else create new objectSchema and attach to object
+		init: (schema, parentPack) => {
+			const p = parentPack || (schema[pack] = newPack()); // use parent objectSchema else create new objectSchema and attach to object
 			for (const field in schema) {
 				const childSchema = schema[field];
 				childSchema[fieldName] = field;
-				initialize(childSchema, o);
-				if (childSchema.bits) o.ints.push(childSchema);
+				initialize(childSchema, p);
+				if (childSchema.bits) p.ints.push(childSchema);
 			}
-			if (!parentObjSchema && o.ints.length) packInts(o); // packInts if current object has no parent object
+			if (!parentPack && p.ints.length) packInts(p, true); // packInts if current object has no parent object
 		},
 	},
 	null: { encode: () => {}, decode: () => null },
@@ -158,7 +164,7 @@ const types = {
 
 const type = (schema) => types[schema ? schema._type || 'object' : 'null'];
 const parse = (schema) => JSON.parse(typeof schema == 'string' ? schema : JSON.stringify(schema));
-const initialize = (schema, objSchema) => type(schema).init?.(schema, objSchema);
+const initialize = (schema, pack) => type(schema).init?.(schema, pack);
 const parseInputs = (schemaName, data) => data === undefined ? schemaName : [ schemaName, data ];
 const encodeSchema = (buf, schema, data) => type(schema).encode(buf, schema, data);
 const decodeSchema = (buf, schema) => type(schema).decode(buf, schema);
@@ -248,9 +254,8 @@ const checkSize = (buf, bytes) => {
 		checkSize(buf, bytes);
 	}
 };
-
-const packInts = (o) => { // takes all "bit" fields in current object and efficiently packs into 32/16/8 bit spaces
-	o.ints.sort((a, b) => b.bits - a.bits);
+const packInts = (o, sort) => { // efficiently packs bits(1-32) fields into 32 / 16 / 8 bit spaces
+	if (sort) o.ints.sort((a, b) => b.bits - a.bits);
 	while (o.ints.length) {
 		let ints32 = [], remaining = 32;
 		for (let i = 0; i < o.ints.length; i++) {
@@ -260,8 +265,30 @@ const packInts = (o) => { // takes all "bit" fields in current object and effici
 				if (!remaining) break;
 			}
 		}
-		(remaining < 16 ? o.int32 : remaining < 24 ? o.int16 : o.int8).push(ints32);
+		if (remaining < 8) o.int32.push(ints32);
+		else if (remaining < 16) { // try to fit into 16 + 8 space
+			let ints16 = [], ints8 = [], remaining16 = 16, remaining8 = 8, fail;
+			for (let i = 0; i < ints32.length; i++) {
+				if (ints32[i].bits <= remaining16) {
+					remaining16 -= ints32[i].bits;
+					ints16.push(ints32[i]);
+				} else if (ints32[i].bits <= remaining8) {
+					remaining8 -= ints32[i].bits;
+					ints8.push(ints32[i]);
+				} else { // failed to fit into 16 + 8, use 32
+					fail = true;
+					break;
+				}
+			}
+			if (fail) o.int32.push(ints32);
+			else { o.int16.push(ints16); o.int8.push(ints8); }
+		} else (remaining < 24 ? o.int16 : o.int8).push(ints32);
 	}
+};
+const writePack = (buf, o) => {
+	if (o.int8.length) for (const ints of o.int8) writeInts(buf, 1, ints);
+	if (o.int16.length) for (const ints of o.int16) writeInts(buf, 2, ints);
+	if (o.int32.length) for (const ints of o.int32) writeInts(buf, 4, ints);
 };
 const writeInts = (buf, bytes, ints) => {
 	let packed = 0;
@@ -273,13 +300,20 @@ const writeInts = (buf, bytes, ints) => {
 	}
 	writeUint(buf, packed >>> 0, bytes);
 };
-const readInts = (buf, bytes, ints) => {
+const readPack = (buf, o, array) => {
+	if (o.int8.length) for (const ints of o.int8) readInts(buf, 1, ints, array); // attaches decoded value to schema
+	if (o.int16.length) for (const ints of o.int16) readInts(buf, 2, ints, array);
+	if (o.int32.length) for (const ints of o.int32) readInts(buf, 4, ints, array);
+};
+const readInts = (buf, bytes, ints, array) => {
 	let packed = readUint(buf, bytes);
-	if (ints.length > 1) for (let i = ints.length - 1; i >= 0; i--) {
-		const val = packed % (1 << ints[i].bits);
-		ints[i].decoded = ints[i].bool ? Boolean(val) : ints[i].map?.index[val] ?? val;
+	for (let i = ints.length - 1; i >= 0; i--) {
+		const val = ints.length > 1 ? packed % (1 << ints[i].bits) : packed;
+		const decoded = ints[i].bool ? Boolean(val) : ints[i].map?.index[val] ?? val;
+		if (array) array[ints[i].index] = decoded;
+		else ints[i].decoded = decoded;
 		packed >>>= ints[i].bits;
-	} else ints[0].decoded = ints[0].bool ? Boolean(packed) : ints[0].map?.index[packed] ?? packed;
+	}
 };
 const setData = (schema, data) => {
 	for (const field in schema) {
@@ -302,10 +336,10 @@ const genMap = (values) => {
 const isObject = schema => !schema._type;
 const maxInt = Array.from(Array(33), (x, i) => 2**i - 1);
 const numberToBits = (num) => Math.ceil(Math.log2(num + 1)) || 1;
-const newObjSchema = () => ({ ints: [], int8: [], int16: [], int32: [] });
+const newPack = () => ({ ints: [], int8: [], int16: [], int32: [] });
 const uint8arrayToHex = (uint8) => uint8.reduce((hex, byte) => hex + byte.toString(16).padStart(2, '0'), '');
 const fieldName = Symbol('fieldName');
-const objSchema = Symbol('objSchema');
+const pack = Symbol('pack');
 const defaultBlob = new Uint8Array(0);
 const defaultObjectID = { id: new Uint8Array(12) };
 const defaultUUID = { buffer: new Uint8Array(16) };
