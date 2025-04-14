@@ -85,8 +85,7 @@ const types = {
 			const childSchema = schema.val;
 			if (!schema._size) writeVarInt(buf, data.length);
 			if (useArrayPacking(childSchema)) {
-				const p = newPack();
-				data.forEach((d, i) => p.ints.push({ bits: childSchema.bits, index: i, bool: childSchema.bool, map: childSchema.map, data: d }));
+				const p = newPack(data.map((data, index) => ({ schema: childSchema, data, index })));
 				packInts(p);
 				writePack(buf, p);
 			} else for (const item of data) encodeSchema(buf, childSchema, item);
@@ -95,14 +94,11 @@ const types = {
 			const childSchema = schema.val;
 			const length = schema._size || readVarInt(buf);
 			if (useArrayPacking(childSchema)) {
-				const p = newPack();
-				for (let i = 0; i < length; i++) p.ints.push({ bits: childSchema.bits, index: i, bool: childSchema.bool, map: childSchema.map  });
+				const p = newPack(Array.from(Array(length)).map((x, index) => ({ schema: childSchema, index })));
 				packInts(p);
 				return readPack(buf, p, Array(length));
 			}
-			const arr = [];
-			for (let i = length; i > 0; i--) arr.push(decodeSchema(buf, childSchema));
-			return arr;
+			return Array.from(Array(length)).map(x => decodeSchema(buf, childSchema));
 		},
 		init: (schema) => initialize(schema.val),
 	},
@@ -152,7 +148,7 @@ const types = {
 				const childSchema = schema[field];
 				childSchema[fieldName] = field;
 				initialize(childSchema, p);
-				if (childSchema.bits) p.ints.push(childSchema);
+				if (childSchema.bits) p.ints.push({ schema: childSchema });
 			}
 			if (!parentPack && p.ints.length) packInts(p, true); // packInts if current object has no parent object
 		},
@@ -253,12 +249,12 @@ const checkSize = (buf, bytes) => {
 	}
 };
 const packInts = (o, sort) => { // efficiently packs bits(1-32) fields into 32 / 16 / 8 bit spaces
-	if (sort) o.ints.sort((a, b) => b.bits - a.bits);
+	if (sort) o.ints.sort((a, b) => b.schema.bits - a.schema.bits);
 	while (o.ints.length) {
 		let ints32 = [], remaining = 32;
 		for (let i = 0; i < o.ints.length; i++) {
-			if (o.ints[i].bits <= remaining) {
-				remaining -= o.ints[i].bits;
+			if (o.ints[i].schema.bits <= remaining) {
+				remaining -= o.ints[i].schema.bits;
 				ints32.push(...o.ints.splice(i--, 1));
 				if (!remaining) break;
 			}
@@ -267,11 +263,11 @@ const packInts = (o, sort) => { // efficiently packs bits(1-32) fields into 32 /
 		else if (remaining < 16) { // try to fit into 16 + 8 space
 			let ints16 = [], ints8 = [], remaining16 = 16, remaining8 = 8, fail;
 			for (let i = 0; i < ints32.length; i++) {
-				if (ints32[i].bits <= remaining16) {
-					remaining16 -= ints32[i].bits;
+				if (ints32[i].schema.bits <= remaining16) {
+					remaining16 -= ints32[i].schema.bits;
 					ints16.push(ints32[i]);
-				} else if (ints32[i].bits <= remaining8) {
-					remaining8 -= ints32[i].bits;
+				} else if (ints32[i].schema.bits <= remaining8) {
+					remaining8 -= ints32[i].schema.bits;
 					ints8.push(ints32[i]);
 				} else { // failed to fit into 16 + 8, use 32
 					fail = true;
@@ -291,9 +287,9 @@ const writePack = (buf, o) => {
 const writeInts = (buf, bytes, ints) => {
 	let packed = 0;
 	for (const int of ints) {
-		const value = int.map ? int.map.values[int.data] : int.bool ? int.data ? 1 : 0 : int.data;
-		if (!(value >= 0 && value <= maxInt[int.bits])) throw RangeError(`field "${int[fieldName]}" with value "${value}" out of range [ 0 - ${maxInt[int.bits]} ]`);
-		packed <<= int.bits;
+		const value = int.schema.map ? int.schema.map.values[int.data] : int.schema.bool ? int.schema.data ? 1 : 0 : int.schema.data;
+		if (!(value >= 0 && value <= maxInt[int.schema.bits])) throw RangeError(`field "${int.schema[fieldName]}" with value "${value}" out of range [ 0 - ${maxInt[int.schema.bits]} ]`);
+		packed <<= int.schema.bits;
 		packed |= value;
 	}
 	writeUint(buf, packed >>> 0, bytes);
@@ -310,7 +306,7 @@ const readInts = (buf, bytes, ints, array) => {
 		const val = ints.length > 1 ? packed % (1 << ints[i].bits) : packed;
 		const decoded = ints[i].bool ? Boolean(val) : ints[i].map?.index[val] ?? val;
 		if (array) array[ints[i].index] = decoded;
-		else ints[i].decoded = decoded;
+		else ints[i].schema.decoded = decoded;
 		packed >>>= ints[i].bits;
 	}
 };
@@ -335,7 +331,7 @@ const genMap = (values) => {
 const isObject = schema => !schema._type;
 const maxInt = Array.from(Array(33), (x, i) => 2**i - 1);
 const numberToBits = (num) => Math.ceil(Math.log2(num + 1)) || 1;
-const newPack = () => ({ ints: [], int8: [], int16: [], int32: [] });
+const newPack = (ints = []) => ({ ints, int8: [], int16: [], int32: [] });
 const uint8arrayToHex = (uint8) => uint8.reduce((hex, byte) => hex + byte.toString(16).padStart(2, '0'), '');
 const useArrayPacking = s => s.bits && s._type && (s.bits <= 6 || s.bits == 9 || s.bits == 10);
 const fieldName = Symbol('fieldName');
