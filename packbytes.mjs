@@ -287,7 +287,7 @@ const writePack = (buf, o) => {
 const writeInts = (buf, bytes, ints) => {
 	let packed = 0;
 	for (const int of ints) {
-		const value = int.schema.map ? int.schema.map.values[int.data] : int.schema.bool ? int.schema.data ? 1 : 0 : int.schema.data;
+		const value = int.schema.map ? int.schema.map.values[int.schema.data] : int.schema.bool ? int.schema.data ? 1 : 0 : int.schema.data;
 		if (!(value >= 0 && value <= maxInt[int.schema.bits])) throw RangeError(`field "${int.schema[fieldName]}" with value "${value}" out of range [ 0 - ${maxInt[int.schema.bits]} ]`);
 		packed <<= int.schema.bits;
 		packed |= value;
@@ -303,11 +303,11 @@ const readPack = (buf, o, array) => {
 const readInts = (buf, bytes, ints, array) => {
 	let packed = readUint(buf, bytes);
 	for (let i = ints.length - 1; i >= 0; i--) {
-		const val = ints.length > 1 ? packed % (1 << ints[i].bits) : packed;
-		const decoded = ints[i].bool ? Boolean(val) : ints[i].map?.index[val] ?? val;
-		if (array) array[ints[i].index] = decoded;
+		const val = ints.length > 1 ? packed % (1 << ints[i].schema.bits) : packed;
+		const decoded = ints[i].schema.bool ? Boolean(val) : ints[i].schema.map?.index[val] ?? val;
+		if (array) array[ints[i].schema.index] = decoded;
 		else ints[i].schema.decoded = decoded;
-		packed >>>= ints[i].bits;
+		packed >>>= ints[i].schema.bits;
 	}
 };
 const setData = (schema, data) => {
