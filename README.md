@@ -133,32 +133,37 @@ Encoding | time (ns) | bytes
 
 ```javascript
 // all available exports:
-import { bool, bits, string, float, blob, varint, objectid, uuid, date, lonlat, array, schemas, PackBytes } from 'packbytes';
+import { bool, bits, maxInt, float, varint, string, blob, date, array, union, PackBytes } from 'packbytes';
 
-// create a schema using any combination or nesting of schema types:
-schema = bool // true or false
-schema = bits(x) // x number bits for unsigned integer (max integer = 2**x - 1)
-schema = string // string of any length
-schema = string([ 'str1', 'str2', .. ]) // any of specific strings, auto-maps to integer
-schema = float(x) // 32 or 64 bit floating point number
-schema = blob // any length buffer
-schema = blob(x) // specific byte size buffer 
-schema = varint // variable length integer (max integer = 1_073_741_823) 
-schema = objectid // MongoDB ObjectID
-schema = uuid // MongoDB BSON UUID object
-schema = date // javascript Date
-schema = lonlat // coordinates [ longitude, latitude ]
-schema = array(schema) // array of any schema type
-schema = array(schema).size(x) // specific length array
-schema = { field1: schema, field2: schema, .. } // object with multiple fields, field names auto-map to integers
-schema = schemas({ schema1: schema, schema2: schema, .. }) // multiple schemas mapped to 1 schema, schema names auto-map to integers
+// create a schema using any combination of types:
+type = bool // true or false
+type = bits(x) // x number of bits 1-32 for unsigned integer, max int = 2**32 - 1
+type = maxInt(x) // max integer from 0 to 4_294_967_295, auto calculates bits(x)
+type = float(x) // 16, 32, or 64 bit floating point number
+type = varint // variable length integer, max int = 1_073_741_823
+type = string // string of any length
+type = string([ 'str1', 'str2', .. ]) // any of specific strings
+type = blob // any length buffer
+type = blob(x) // specific byte size buffer 
+type = date // 32 bit javascript Date, 1 second accuracy with year range 1884 to 2106
+type = array(type) // array of any type
+type = array(type).size(x) // specific length array
+type = { field1: type, field2: type, .. } // object with all fields
+type = select({ field1: type, field2: type, .. }) // object with a single field active
+type = union({ field1: type, field2: type, .. }) // object with multiple optional fields
+type = null // takes up no space
+
+schema = type
 
 // create encoder by providing schema:
-// accepts schema object or JSON.stringify(schema) string for easy transfer from server to client:
 const { encode, decode } = PackBytes(schema)
 
-buf = encode(data) // encode data
-buf = encode(schema_name, data) // encode data with specific schema from 'schemas' type
+// also takes JSON string of schema:
+const { encode, decode } = PackBytes(JSON.stringify(schema))
 
-data = decode(buf) // decode, returns original data
+// encode data to buffer
+buf = encode(data) 
+
+// decode buffer to original data
+data = decode(buf) 
 ```

@@ -1,6 +1,8 @@
-import { bool, bits, string, array, float, blob, schemas, PackBytes } from '../packbytes.mjs';
+import { bool, bits, string, array, float, blob, union, select, PackBytes } from '../packbytes.mjs';
 export const logs = [];
 const log = (...msg) => console.log(...msg) || logs.push(msg);
+
+const data = Array.from({ length: 32 }).map((x, i) => i);
 
 const tests = [
 	{ schema: bool, data: true },
@@ -15,10 +17,9 @@ const tests = [
 	//{ schema: float(64), data: 12345678.901234 },
 	{ schema: blob, data: new Uint8Array([ 0, 1 ]) },
 	{ schema: blob(3), data: new Uint8Array([ 0, 1, 2 ]) },
-	{ schema: array(bits(2)), data: [ 0, 1, 2, 3 ] },
-	{ schema: array(bits(3)), data: [ 0, 1, 2, 3, 4, 5, 6, 7 ] },
-	{ schema: array(bits(5)), data: Array.from({ length: 32 }).map((x, i) => i) },
-	{ schema: schemas({ s1: null, s2: bits(3) }), data: [ 's2', 3 ] },
+	...Array.from({ length: 32 }).map((x, i) => ({ schema: array(bits(i + 1)), data })),
+	{ schema: union({ s1: null, s2: bits(3) }), data: { s2: 3 } },
+	{ schema: select({ s1: null, s2: bits(3) }), data: { s2: 3 } },
 ];
 tests.push({
 	schema: tests.reduce((obj, t, i) => (obj[i] = t.schema, obj), {}),
@@ -33,8 +34,8 @@ tests.push({
 	data: tests.reduce((obj, t, i) => (obj[i] = t.data, obj), {})
 });
 tests.push({
-	schema: schemas({ s1: bool, s2: tests.slice(-1)[0].schema }),
-	data: [ 's2', tests.slice(-1)[0].data ]
+	schema: union({ s1: bool, s2: tests.slice(-1)[0].schema }),
+	data: { s2: tests.slice(-1)[0].data }
 });
 
 // run tests
