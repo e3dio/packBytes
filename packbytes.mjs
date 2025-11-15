@@ -24,7 +24,7 @@ const types = {
 		encode: (buf, schema, data = 0) => writeUint(buf, data, schema.bytes),
 		decode: (buf, schema) => readUint(buf, schema.bytes),
 		init: schema => {
-			if (!(schema.val >= 1 && schema.val <= 32)) throw TypeError(`bit size must be 1 to 32, received "${schema.val}"`);
+			if (!(schema.val >= 1 && schema.val <= 32)) throw TypeError(`bit size must be 1 to 32, got "${schema.val}"`);
 			schema.bits = schema.val;
 			schema.bytes = schema.bits > 16 ? 4 : schema.bits > 8 ? 2 : 1;
 		},
@@ -33,7 +33,7 @@ const types = {
 		encode: (buf, schema, data = 0) => writeFloat(buf, data, schema.bytes),
 		decode: (buf, schema) => readFloat(buf, schema.bytes),
 		init: schema => {
-			if (schema.val != 16 && schema.val != 32 && schema.val != 64) throw TypeError(`float must be 16, 32, or 64 bits, received "${schema.val}"`);
+			if (schema.val != 16 && schema.val != 32 && schema.val != 64) throw TypeError(`float must be 16, 32, or 64 bits, got "${schema.val}"`);
 			schema.bytes = schema.val / 8;
 		},
 	},
