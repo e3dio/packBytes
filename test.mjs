@@ -1,4 +1,4 @@
-import { bool, bits, string, array, float, blob, union, select, PackBytes } from '../packbytes.mjs';
+import { bool, bits, string, array, float, blob, union, select, PackBytes } from './packbytes.mjs';
 export const logs = [];
 const log = (...msg) => console.log(...msg) || logs.push(msg);
 
