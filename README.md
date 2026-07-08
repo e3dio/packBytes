@@ -1,6 +1,6 @@
 ```javascript
 import p from './pack.mjs';
-const { Pack, bool, bits, int, float, varint, string, blob, date, array, select, union } = p;
+const { Pack, bool, bits, int, float, varint, string, blob, date, array, selectOne, selectMany } = p;
 
 type = bool // true or false
 type = bits(x) // x = number of bits 1-32 for unsigned integer, max int = 2**x - 1
