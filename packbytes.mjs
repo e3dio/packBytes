@@ -1,119 +1,122 @@
-export const PackBytes = (schema, bufferSize = 4096) => {
+const Pack = (schema, bufferSize = 4096) => {
 	initialize(schema = parse(schema));
 	const buf = setEncodeBuffer(new ArrayBuffer(bufferSize));
 	return {
 		encode: data => {
 			buf.offset = 0;
-			encodeSchema(buf, schema, data);
+			encodeSchema(schema, buf, data);
 			return new Uint8Array(buf.encodeAB, 0, buf.offset);
 		},
-		decode: buffer => decodeSchema(decodeBuffer(buffer), schema),
+		decode: buffer => decodeSchema(schema, setDecodeBuffer(buffer)),
 	};
 };
 
 const types = {
 	bool: {
-		encode: (buf, schema, data = 0) => writeUint(buf, data, 1),
-		decode: (buf, schema) => Boolean(readUint(buf, 1)),
+		encode: (schema, buf, data) => writeUint(buf, data, 1),
+		decode: (schema, buf) => Boolean(readUint(buf, 1)),
 		init: schema => {
-			schema.bits = 1; // schemas with "bits" field get packed into 32 bit spaces by packInts() if schema is child of object, skipping encode/decode fn
+			schema.bits = 1; // schemas with "bits" field get packed into 8, 16, or 32 bit spaces by packInts() if schema is child of object, skipping encode/decode fn
 			schema.bool = true;
 		},
 	},
 	bits: {
-		encode: (buf, schema, data = 0) => writeUint(buf, data, schema.bytes),
-		decode: (buf, schema) => readUint(buf, schema.bytes),
+		encode: (schema, buf, data) => writeUint(buf, data, schema.bytes),
+		decode: (schema, buf) => readUint(buf, schema.bytes),
 		init: schema => {
 			if (!(schema.val >= 1 && schema.val <= 32)) throw TypeError(`bit size must be 1 to 32, got "${schema.val}"`);
 			schema.bits = schema.val;
 			schema.bytes = schema.bits > 16 ? 4 : schema.bits > 8 ? 2 : 1;
 		},
 	},
-	float: {
-		encode: (buf, schema, data = 0) => writeFloat(buf, data, schema.bytes),
-		decode: (buf, schema) => readFloat(buf, schema.bytes),
+	int: {
+		encode: (schema, buf, data) => writeInt(buf, data, schema.bytes),
+		decode: (schema, buf) => readInt(buf, schema.bytes),
 		init: schema => {
-			if (schema.val != 16 && schema.val != 32 && schema.val != 64) throw TypeError(`float must be 16, 32, or 64 bits, got "${schema.val}"`);
+			if (![ 8, 16, 32 ].includes(schema.val)) throw TypeError(`int must be 8, 16, or 32 bits, got "${schema.val}"`);
+			schema.bytes = schema.val / 8;
+		},
+	},
+	float: {
+		encode: (schema, buf, data) => writeFloat(buf, data, schema.bytes),
+		decode: (schema, buf) => readFloat(buf, schema.bytes),
+		init: schema => {
+			if (![ 16, 32, 64 ].includes(schema.val)) throw TypeError(`float must be 16, 32, or 64 bits, got "${schema.val}"`);
 			schema.bytes = schema.val / 8;
 		},
 	},
 	varint: {
-		encode: (buf, schema, data = 0) => writeVarInt(buf, data),
-		decode: (buf, schema) => readVarInt(buf),
+		encode: (schema, buf, data) => writeVarInt(buf, data),
+		decode: (schema, buf) => readVarInt(buf),
 	},
 	string: {
-		encode: (buf, schema, data = '') => {
-			if (schema.map) {
-				const int = schema.map.values[data] || 0;
-				writeUint(buf, int, schema.map.bytes) 
-			} else writeString(buf, data);
-		},
-		decode: (buf, schema) => schema.map ? schema.map.index[readUint(buf, schema.map.bytes)] : readString(buf),
-		init: schema => {
-			if (schema.val) {
-				if (schema.val[0] != '') schema.val.unshift('');
-				schema.map = genMap(schema.val);
-				schema.bits = schema.map.bits;
-			}
-		},
+		encode: (schema, buf, data) => writeString(buf, data),
+		decode: (schema, buf) => readString(buf),
 	},
 	blob: {
-		encode: (buf, schema, data = defaultBlob) => writeBlob(buf, data, schema.val),
-		decode: (buf, schema) => readBlob(buf, schema.val),
-	},
-	date: {
-		encode: (buf, schema, data = defaultDate) => writeFloat(buf, data.getTime(), schema.val == 32 ? 4 : 8),
-		decode: (buf, schema) => new Date(readFloat(buf, schema.val == 32 ? 4 : 8)),
+		encode: (schema, buf, data) => writeBlob(buf, data, schema.val),
+		decode: (schema, buf) => readBlob(buf, schema.val),
 	},
 	array: {
-		encode: (buf, schema, data = []) => {
-			if (!schema._size) writeVarInt(buf, data.length);
-			if (schema.packSizeBits) {
+		encode: (schema, buf, data = []) => {
+			if (!schema.length) writeVarInt(buf, data.length);
+			if (schema.packSize) {
+				const len = data.length - 1;
+				var pack = 0;
 				data.forEach((d, i) => {
-					pack <<= schema.packSizeBits;
-					pack += d;
-					if (!(i % schema.packSize) && i) {
-						writeUint(buf, pack, schema.packSizeBytes);
+					pack <<= schema.val.bits;
+					pack += minmax(d, 0, maxInt[schema.val.bits]);
+					if (!((i + 1) % schema.packSize) || i == len) {
+						writeUint(buf, pack, schema.packBytes);
 						pack = 0;
 					}
 				});
-				if (pack) writeUint(buf, pack, schema.packSizeBytes);
-			} else for (const d of data) encodeSchema(buf, schema.val, d);
+			} else for (const d of data) encodeSchema(schema.val, buf, d);
 		},
-		decode: (buf, schema) => {
-			const arr = [], length = schema._size || readVarInt(buf);
-			if (schema.packSizeBits) {
-				var pack;
+		decode: (schema, buf) => {
+			const arr = [], length = schema.length || readVarInt(buf);
+			if (schema.packSize) {
+				var pack, packArr = [];;
 				for (let i = 0; i < length; i++) {
 					if (!(i % schema.packSize)) {
-						pack = readUint(buf, schema.packSizeBits);
+						while (packArr.length) arr.push(packArr.pop());
+						pack = readUint(buf, schema.packBytes);
 					}
-					arr.push(pack % schema.packSizeBits);
-					pack >>>= schema.packSizeBits;
+					const val = pack % schema.itemSize;
+					packArr.push(schema.val.bool ? Boolean(val) : val);
+					pack >>>= schema.val.bits;
+					if (!((i + 1) % schema.packSize)) {
+						while (packArr.length) arr.push(packArr.pop());
+					}
 				}
-			} else for (let i = 0; i < length; i++) arr.push(decodeSchema(buf, schema.val));
+				while (packArr.length) arr.push(packArr.pop());
+			} else for (let i = 0; i < length; i++) arr.push(decodeSchema(schema.val, buf));
 			return arr;
 		},
 		init: schema => {
-			schema.packSizeBits = arrayPackSizes[schema.val.bits];
-			schema.packSizeBytes = bitsToBytes(schema.packSizeBits);
+			if (!schema.val) throw TypeError(`array must have child type`);
 			initialize(schema.val);
+			if (schema.val.bits) {
+				schema.packSize = arrayPackCount[schema.val.bits];
+				schema.packBytes = bitsToBytes(schema.packSize * schema.val.bits);
+				schema.itemSize = 2**schema.val.bits;
+			}
 		},
 	},
 	object: {
-		encode: (buf, schema, data) => {
+		encode: (schema, buf, data) => {
 			if (schema[pack]) {
 				setData(schema, data);
 				writePack(buf, schema[pack]);
 			}
-			for (const field in schema) if (!schema[field].bits) encodeSchema(buf, schema[field], data[field]);
+			for (const field in schema) if (!schema[field].bits) encodeSchema(schema[field], buf, data[field]);
 		},
-		decode: (buf, schema) => {
+		decode: (schema, buf) => {
 			const obj = {}, p = schema[pack];
 			if (p) readPack(buf, p); // attaches decoded value to schema
 			for (const field in schema) {
 				const childSchema = schema[field];
-				obj[field] = childSchema.data ?? decodeSchema(buf, childSchema);
+				obj[field] = childSchema.data ?? decodeSchema(childSchema, buf);
 			}
 			return obj;
 		},
@@ -128,49 +131,49 @@ const types = {
 			if (!parentPack && p.ints.length) packInts(p, true);
 		},
 	},
-	select: {
-		encode: (buf, schema, data) => {
+	selectOne: {
+		encode: (schema, buf, data) => {
 			for (const f in data) {
 				writeUint(buf, schema.map.values[f], schema.map.bytes);
-				encodeSchema(buf, schema.val[f], data[f]);
+				encodeSchema(schema.val[f], buf, data[f]);
 				break;
 			}
 		},
-		decode: (buf, schema) => {
+		decode: (schema, buf) => {
 			const field = schema.map.index[readUint(buf, schema.map.bytes)];
-			return { [field]: decodeSchema(buf, schema.val[field]) };
+			return { [field]: decodeSchema(schema.val[field], buf) };
 		},
 		init: schema => {
 			schema.map = genMap(Object.keys(schema.val));
 			Object.values(schema.val).forEach(schema => initialize(schema));
 		}
 	},
-	union: {
-		encode: (buf, schema, data) => {
-			let field_bits = 0, field_count = 0;
+	selectMany: {
+		encode: (schema, buf, data) => {
+			let bit_field = 0, field_index = 0;
 			for (const f in schema.val) {
-				if (field_count == 32) { // max 32 fields per u32
-					writeUint(buf, field_bits, 4);
-					field_bits = field_count = 0;
+				if (field_index == 32) { // max 32 fields per u32
+					writeUint(buf, bit_field, 4);
+					bit_field = field_index = 0;
 				}
-				if (data[f] !== undefined) field_bits += 1<<field_count; // active field
-				field_count += 1;
+				if (data[f] !== undefined) bit_field += 1<<field_index; // active field
+				field_index += 1;
 			}
-			writeUint(buf, field_bits, bitsToBytes(field_count));
-			for (const f in schema.val) if (data[f] !== undefined) encodeSchema(buf, schema.val[f], data[f]);
+			writeUint(buf, bit_field, bitsToBytes(field_index));
+			for (const f in schema.val) if (data[f] !== undefined) encodeSchema(schema.val[f], buf, data[f]);
 		},
-		decode: (buf, schema) => {
-			const obj = {};
-			const total = schema.map.index.length;
-			var i = 0;
-			while (i < total) {
-				var int = Math.min(32, total - i);
-				var field_bits = readUint(buf, bitsToBytes(int));
-				while (int > 0) {
-					if (field_bits & 1) obj[schema.map.index[i]] = decodeSchema(buf, schema.val[schema.map.index[i]]);
-					field_bits >>>= 1;
-					int--;
-					i++;
+		decode: (schema, buf) => {
+			const obj = {}, field_count = schema.map.index.length;
+			var field_index = 0;
+			while (field_index < field_count) {
+				const fields_in_group = Math.min(32, field_count - field_index); // process up to 32 fields per group
+				const bit_field = readUint(buf, bitsToBytes(fields_in_group));
+				for (let index_in_group = 0; index_in_group < fields_in_group; index_in_group++) {
+					if (bit_field & 1<<index_in_group) { // active field
+						const f = schema.map.index[field_index];
+						obj[f] = decodeSchema(schema.val[f], buf);
+					}
+					field_index++;
 				}
 			}
 			return obj;
@@ -186,24 +189,38 @@ const types = {
 	},
 };
 
-const type = schema => types[typeName(schema)];
-const typeName = schema => schema ? schema._type || 'object' : schema;
+const type = schema => types[schema && (schema._type || 'object')];
 const parse = schema => JSON.parse(typeof schema == 'string' ? schema : JSON.stringify(schema));
 const initialize = (schema, pack) => type(schema).init?.(schema, pack);
-const encodeSchema = (buf, schema, data) => type(schema).encode(buf, schema, data);
-const decodeSchema = (buf, schema) => type(schema).decode(buf, schema);
+const encodeSchema = (schema, buf, data) => type(schema).encode(schema, buf, data);
+const decodeSchema = (schema, buf) => type(schema).decode(schema, buf);
 const setEncodeBuffer = (arrayBuffer, buf = {}) => {
 	buf.encodeAB = arrayBuffer;
 	buf.encodeDV = new DataView(arrayBuffer); 
 	buf.encodeUA = new Uint8Array(arrayBuffer);
 	return buf;
 };
-const decodeBuffer = b => ({ // b = Buffer, TypedArray, or ArrayBuffer
+const setDecodeBuffer = b => ({ // b = Buffer, TypedArray, or ArrayBuffer
 	decodeDV: b.buffer ? new DataView(b.buffer, b.byteOffset, b.byteLength) : new DataView(b),
 	decodeUA: b.buffer ? new Uint8Array(b.buffer, b.byteOffset, b.byteLength) : new Uint8Array(b),
 	offset: 0,
 });
 
+const writeInt = (buf, val, bytes) => {
+	checkSize(buf, bytes);
+	bytes == 1 ? buf.encodeDV.setInt8(buf.offset, minmax(val, -128, 127)) :
+	bytes == 2 ? buf.encodeDV.setInt16(buf.offset, minmax(val, -32768, 32767)) :
+		buf.encodeDV.setInt32(buf.offset, minmax(val, -2147483648, 2147483647));
+	buf.offset += bytes;
+};
+const readInt = (buf, bytes) => {
+	const int =
+		bytes == 1 ? buf.decodeDV.getInt8(buf.offset) :
+		bytes == 2 ? buf.decodeDV.getInt16(buf.offset) :
+			buf.decodeDV.getInt32(buf.offset);
+	buf.offset += bytes;
+	return int;
+};
 const writeUint = (buf, val, bytes) => {
 	checkSize(buf, bytes);
 	bytes == 1 ? buf.encodeDV.setUint8(buf.offset, val) :
@@ -219,7 +236,7 @@ const readUint = (buf, bytes) => {
 	buf.offset += bytes;
 	return int;
 };
-const writeFloat = (buf, val, bytes) => {
+const writeFloat = (buf, val = 0, bytes) => {
 	checkSize(buf, bytes);
 	bytes == 2 ? buf.encodeDV.setFloat16(buf.offset, val) :
 	bytes == 4 ? buf.encodeDV.setFloat32(buf.offset, val) :
@@ -234,22 +251,23 @@ const readFloat = (buf, bytes) => {
 	buf.offset += bytes;
 	return float;
 };
-const writeVarInt = (buf, int) => {
-	if (int < 0) return writeUint(buf, 0, 1);
-	if (int <= 127) return writeUint(buf, int, 1);
-	if (int <= 16_383) return writeUint(buf, ((int & 0b11_1111_1000_0000) << 1) | (int & 0b111_1111) | 0b1000_0000_0000_0000, 2);
-	if (int <= 1_073_741_823) return writeUint(buf, ((int & 0b11_1111_1000_0000_0000_0000_0000_0000) << 1) | (int & 0b111_1111_1111_1111_1111_1111) | 0b1000_0000_1000_0000_0000_0000_0000_0000, 4);
-	throw RangeError(`varInt max 1,073,741,823 exceeded: "${int}"`);
+const writeVarInt = (buf, int = 0) => {
+	if (int <= 0) writeUint(buf, 0, 1);
+	else if (int <= 127) writeUint(buf, int, 1);
+	else if (int <= 16_383) writeUint(buf, 128 + (int & 63), 1), writeUint(buf, int >>> 6, 1);
+	else {
+		if (int > 1073741823) throw Error(`writeVarInt "${int}" exceeds max 1073741823`);
+		writeUint(buf, 192 + (int & 63), 1), writeUint(buf, int >>> 6, 1), writeUint(buf, int >>> 14, 2);
+	}
 };
 const readVarInt = buf => {
-	let val = readUint(buf, 1);
+	const val = readUint(buf, 1);
 	if (val < 128) return val;
-	buf.offset--; val = readUint(buf, 2);
-	if (!(val & 0b1000_0000)) return ((val & 0b111_1111_0000_0000) >> 1) | (val & 0b111_1111);
-	buf.offset -= 2; val = readUint(buf, 4);
-	return ((val & 0b111_1111_0000_0000_0000_0000_0000_0000) >> 1) | (val & 0b111_1111_1111_1111_1111_1111);
+	if (val < 192) return (val - 128) + (readUint(buf, 1) << 6);
+	return (val - 192) + (readUint(buf, 1) << 6) + (readUint(buf, 2) << 14);
 };
 const writeString = (buf, str) => {
+	if (!str) return writeUint(buf, 0, 1);
 	const uint8array = textEncoder.encode(str);
 	writeVarInt(buf, uint8array.length);
 	checkSize(buf, uint8array.length);
@@ -263,18 +281,19 @@ const readString = buf => {
 	return str;
 };
 const writeBlob = (buf, blob, bytes) => { // blob = Buffer, TypedArray, or ArrayBuffer
-	if (blob.byteLength === undefined) blob = defaultBlob;
+	if (!bytes && !blob?.byteLength) return writeUint(buf, 0, 1);
 	if (!blob.buffer) blob = new Uint8Array(blob); // blob was ArrayBuffer
-	const length = bytes || blob.byteLength;
-	if (!bytes) writeVarInt(buf, length);
+	else if (blob.BYTES_PER_ELEMENT != 1) blob = new Uint8Array(blob.buffer, blob.byteOffset, blob.byteLength);
+	const length = bytes ?? blob.byteLength;
+	bytes ?? writeVarInt(buf, length);
 	checkSize(buf, length);
-	if (blob.byteLength > length) blob = new Uint8Array(blob.buffer, blob.byteOffset, length);
 	if (blob.byteLength < length) buf.encodeUA.fill(0, buf.offset + blob.byteLength, buf.offset + length);
+	else if (blob.byteLength > length) blob = new Uint8Array(blob.buffer, blob.byteOffset, length);
 	buf.encodeUA.set(blob, buf.offset);
 	buf.offset += length;
 };
 const readBlob = (buf, bytes) => {
-	const length = bytes || readVarInt(buf);
+	const length = bytes == undefined ? readVarInt(buf) : bytes;
 	const blob = buf.decodeUA.subarray(buf.offset, buf.offset + length);
 	buf.offset += length;
 	return blob;
@@ -302,10 +321,10 @@ const packInts = (o, sort) => { // efficiently packs bits(1-32) fields into 32 /
 			pack.forEach(int => {
 				if (int.schema.bits <= remaining16) {
 					remaining16 -= int.schema.bits;
-					ints16.push(p);
+					ints16.push(int);
 				} else if (int.schema.bits <= remaining8) {
 					remaining8 -= int.schema.bits;
-					ints8.push(p);
+					ints8.push(int);
 				} else fail = true;
 			});
 			if (fail) o.int32.push(pack);
@@ -360,7 +379,7 @@ const genMap = values => {
 	};
 };
 
-const arrayPackSizes = [ 0, 8, 8, 15, 8, 15, 30, 0, 0, 27, 30 ];
+const arrayPackCount = [ 0, 8, 4, 5, 2, 3, 5, 0, 0, 3, 3 ];
 const isObject = schema => !schema._type;
 const maxInt = Array.from(Array(33), (x, i) => 2**i - 1);
 const numberToBits = num => Math.ceil(Math.log2(num + 1)) || 1;
@@ -368,21 +387,16 @@ const bitsToBytes = bits => Math.ceil(bits / 8);
 const newPack = (ints = []) => ({ ints, int8: [], int16: [], int32: [] });
 const uint8arrayToHex = uint8 => uint8.reduce((hex, byte) => hex + byte.toString(16).padStart(2, '0'), '');
 const useArrayPacking = s => s.bits && s._type && (s.bits <= 6 || s.bits == 9 || s.bits == 10);
+const minmax = (val, min, max) => Math.min(max, Math.max(min, val));
 const fieldName = Symbol('fieldName');
 const pack = Symbol('pack');
-const defaultBlob = new Uint8Array(0);
-const defaultObjectID = { id: new Uint8Array(12) };
-const defaultUUID = { buffer: new Uint8Array(16) };
-const defaultDate = new Date(0);
-const defaultLonlat = [ 0, 0 ];
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
-const genType = (_type) => {
-	const fn = val => ({ _type, val, size: function(s) { this._size = s; return this; } });
+const genType = _type => {
+	const fn = (val, length) => ({ _type, val, length });
 	fn.toJSON = () => ({ _type });
 	fn._type = _type;
 	return fn;
 };
 
-export const [ bool, bits, float, varint, string, blob, date, array, union, select ] =
-			[ 'bool', 'bits', 'float', 'varint', 'string', 'blob', 'date', 'array', 'union', 'select' ].map(genType);
+export default Object.keys(types).reduce((o, t) => (o[t] = genType(t), o), { Pack });
