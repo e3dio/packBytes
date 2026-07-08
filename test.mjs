@@ -1,8 +1,8 @@
-import { bool, bits, string, array, float, blob, union, select, PackBytes } from './packbytes.mjs';
+import p from './pack.mjs';
+const { bool, bits, string, array, float, blob, selectMany, selectOne, Pack } = p;
+
 export const logs = [];
 const log = (...msg) => console.log(...msg) || logs.push(msg);
-
-const data = Array.from({ length: 32 }).map((x, i) => i);
 
 const tests = [
 	{ schema: bool, data: true },
@@ -17,9 +17,8 @@ const tests = [
 	//{ schema: float(64), data: 12345678.901234 },
 	{ schema: blob, data: new Uint8Array([ 0, 1 ]) },
 	{ schema: blob(3), data: new Uint8Array([ 0, 1, 2 ]) },
-	...Array.from({ length: 32 }).map((x, i) => ({ schema: array(bits(i + 1)), data })),
-	{ schema: union({ s1: null, s2: bits(3) }), data: { s2: 3 } },
-	{ schema: select({ s1: null, s2: bits(3) }), data: { s2: 3 } },
+	{ schema: selectMany({ s1: null, s2: bits(3) }), data: { s2: 3 } },
+	{ schema: selectOne({ s1: null, s2: bits(3) }), data: { s2: 3 } },
 ];
 tests.push({
 	schema: tests.reduce((obj, t, i) => (obj[i] = t.schema, obj), {}),
@@ -27,14 +26,14 @@ tests.push({
 });
 tests.push(
 	...tests.map(t => ({ schema: array(t.schema), data: [ t.data, t.data ] })),
-	...tests.map(t => ({ schema: array(t.schema).size(3), data: [ t.data, t.data, t.data ] }))
+	...tests.map(t => ({ schema: array(t.schema, 3), data: [ t.data, t.data, t.data ] }))
 );
 tests.push({
 	schema: tests.reduce((obj, t, i) => (obj[i] = t.schema, obj), {}),
 	data: tests.reduce((obj, t, i) => (obj[i] = t.data, obj), {})
 });
 tests.push({
-	schema: union({ s1: bool, s2: tests.slice(-1)[0].schema }),
+	schema: selectMany({ s1: bool, s2: tests.slice(-1)[0].schema }),
 	data: { s2: tests.slice(-1)[0].data }
 });
 
@@ -43,7 +42,7 @@ let fail;
 tests.forEach((t, i) => {
 	if (fail) return;
 	const json = JSON.stringify(t.schema);
-	const { encode, decode } = PackBytes(json);
+	const { encode, decode } = Pack(json);
 	log('');
 	log('TEST', i + 1);
 	log('schema:', json);
