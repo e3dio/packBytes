@@ -1,5 +1,5 @@
 const Pack = (schema, bufferSize = 4096) => {
-	initialize(schema = parse(schema));
+	initialize(schema = parseJSON(schema));
 	const buf = setEncodeBuffer(new ArrayBuffer(bufferSize));
 	return {
 		encode: data => {
@@ -190,7 +190,7 @@ const types = {
 };
 
 const type = schema => types[schema && (schema._type || 'object')];
-const parse = schema => JSON.parse(typeof schema == 'string' ? schema : JSON.stringify(schema));
+const parseJSON = schema => JSON.parse(typeof schema == 'string' ? schema : JSON.stringify(schema));
 const initialize = (schema, pack) => type(schema).init?.(schema, pack);
 const encodeSchema = (schema, buf, data) => type(schema).encode(schema, buf, data);
 const decodeSchema = (schema, buf) => type(schema).decode(schema, buf);
