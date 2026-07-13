@@ -1,3 +1,5 @@
+### Automatic data encoding & decoding for the smallest possible binary size of a given schema
+
 ```javascript
 import p from './pack.mjs';
 const { Pack, bool, bits, int, float, varint, string, blob, array, selectOne, selectMany } = p;
