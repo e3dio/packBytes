@@ -1,5 +1,7 @@
 ### Automatic data encoding & decoding for the smallest possible binary size of a given schema
 
+Most commonly start with a base type of object, array, selectOne, or selectMany, and nest any combination of types to describe your data
+
 ```javascript
 import p from './pack.mjs';
 const { Pack, bool, bits, int, float, varint, string, blob, array, selectOne, selectMany } = p;
@@ -20,10 +22,8 @@ type = selectOne({ field1: type, field2: type, .. }) // object with a single act
 type = selectMany({ field1: type, field2: type, .. }) // object with multiple optional fields
 type = null // takes up no space
 
-schema = type
-
-const { encode, decode } = Pack(schema)
-const { encode, decode } = Pack(JSON.stringify(schema))
+const { encode, decode } = Pack(type)
+const { encode, decode } = Pack(JSON.stringify(type))
 
 buf = encode(data) 
 
