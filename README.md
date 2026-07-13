@@ -25,7 +25,7 @@ type = null // takes up no space
 const { encode, decode } = Pack(type)
 const { encode, decode } = Pack(JSON.stringify(type))
 
-buf = encode(data) 
+buf = encode(data) // small binary encoding
 
-data = decode(buf) 
+data = decode(buf) // return original data
 ```
