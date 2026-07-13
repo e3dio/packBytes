@@ -14,7 +14,7 @@ type = blob(x) // specific byte size buffer
 type = array(type) // array of any type
 type = array(type, size) // specific length array
 type = { field1: type, field2: type, .. } // object with all fields
-type = selectOne({ field1: type, field2: type, .. }) // object with a single field active
+type = selectOne({ field1: type, field2: type, .. }) // object with a single active field
 type = selectMany({ field1: type, field2: type, .. }) // object with multiple optional fields
 type = null // takes up no space
 
