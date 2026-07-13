@@ -1,3 +1,5 @@
+# pack.mjs
+
 ### Automatic data encoding & decoding for the smallest possible binary size of a given schema
 
 Most commonly start with a base type of object, array, selectOne, or selectMany, and nest any combination of types to describe your data
