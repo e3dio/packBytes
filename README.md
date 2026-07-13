@@ -3,7 +3,7 @@ import p from './pack.mjs';
 const { Pack, bool, bits, int, float, varint, string, blob, array, selectOne, selectMany } = p;
 
 type = bool // true or false
-type = bits(x) // x = number of bits 1-32 for unsigned integer, max int = 2**x - 1
+type = bits(x) // x = 1 to 32 bits for unsigned integer, max int = 2**x - 1
 type = int(x) // x = 8, 16, or 32 bits for signed integer
 type = float(x) // x = 16, 32, or 64 bits for floating point number
 type = varint // variable length integer, max int = 1_073_741_823
