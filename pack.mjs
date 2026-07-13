@@ -50,8 +50,9 @@ const types = {
 		decode: (schema, buf) => readVarInt(buf),
 	},
 	string: {
-		encode: (schema, buf, data) => writeString(buf, data),
-		decode: (schema, buf) => readString(buf),
+		encode: (schema, buf, data) => schema.val ? writeUint(buf, schema.map.values[data], schema.map.bytes) : writeString(buf, data),
+		decode: (schema, buf) => schema.val ? schema.map.index[readUint(buf, schema.map.bytes)] : readString(buf),
+		init: schema => schema.val && (schema.map = genMap(schema.val)),
 	},
 	blob: {
 		encode: (schema, buf, data) => writeBlob(buf, data, schema.val),
