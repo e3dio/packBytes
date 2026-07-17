@@ -42,15 +42,15 @@ let fail;
 tests.forEach((t, i) => {
 	if (fail) return;
 	const json = JSON.stringify(t.schema);
-	const { encode, decode } = Pack(json);
+	const pack = new Pack(json);
 	log('');
 	log('TEST', i + 1);
 	log('schema:', json);
 	log('data:', JSON.stringify(t.data));
 	try {
-		var buf = encode(t.data);
+		var buf = pack.encode(t.data);
 		log('buf:', buf);
-		var result = decode(buf);
+		var result = pack.decode(buf);
 	} catch (e) {
 		log('');
 		log('FAIL:');
