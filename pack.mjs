@@ -25,14 +25,6 @@ class Pack {
 				schema.bool = true;
 			},
 		},
-		bool: {
-			encode: function(schema, data) { this.writeUint(1, data); },
-			decode: function(schema) { return Boolean(this.readUint(1)); },
-			init: schema => {
-				schema.bits = 1; // schemas with "bits" field get packed into 8, 16, or 32 bit spaces by packInts() if schema is child of object, skipping encode/decode fn
-				schema.bool = true;
-			},
-		},
 		bits: {
 			encode: function(schema, data) { this.writeUint(schema.bytes, data); },
 			decode: function(schema) { return this.readUint(schema.bytes); },
