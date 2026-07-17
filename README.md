@@ -1,8 +1,8 @@
 # pack.mjs
 
-### Automatic data encoding & decoding for the smallest possible binary size of a given schema
+### Automatic binary data encoding & decoding.
 
-Most commonly start with a base type of object, array, selectOne, or selectMany, and nest any combination of types to describe your data
+Encodes the smallest possible size for a given schema. Most commonly start with a base type of `object`, `array`, `selectOne`, or `selectMany` and nest any combination of types to describe your data. Encodes to `Uint8Array` and decodes back to original data.
 
 ```javascript
 import p from './pack.mjs';
@@ -24,10 +24,10 @@ type = selectOne({ field1: type, field2: type, .. }) // object with a single act
 type = selectMany({ field1: type, field2: type, .. }) // object with multiple optional fields
 type = null // takes up no space
 
-const { encode, decode } = Pack(type)
-const { encode, decode } = Pack(JSON.stringify(type))
+const pack = new Pack(type) // create Pack from schema
+const pack = new Pack(JSON.stringify(type)) // allows sending schema to client as string
 
-buf = encode(data) // small binary encoding
+buf = pack.encode(data) // small binary encoding
 
-data = decode(buf) // return original data
+data = pack.decode(buf) // return original data
 ```
